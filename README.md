@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # forseizure
 
 A new Flutter project.
@@ -15,3 +16,7 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+=======
+# AppsForGood
+This repository is for the 2026 Apps for Good Project
+>>>>>>> f5268bdcd5e12c06e84c7b573785b9c610bc6adc
