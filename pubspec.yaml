@@ -36,6 +36,10 @@ dependencies:
   sqflite: ^2.3.0             # SQLite for Flutter
   path: ^1.8.3                # helps find the database file on the device
 
+  # For the weather service
+  geolocator: ^11.0.0
+  http: ^1.2.0
+
   # UI
   shared_preferences: ^2.2.2  # stores simple things like first_launch flag
   intl: ^0.19.0               # date formatting
