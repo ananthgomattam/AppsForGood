@@ -17,11 +17,11 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
     Timer(const Duration(milliseconds: 1200), () async {
       if (!mounted) return;
-      final currentUser = await FrontendAccountStore.instance.getCurrentUsername();
+      final user = await FrontendAccountStore.instance.getCurrentUsername();
       if (!mounted) return;
       Navigator.pushReplacementNamed(
         context,
-        currentUser == null ? '/login' : '/dashboard',
+        user == null ? '/login' : '/dashboard',
       );
     });
   }

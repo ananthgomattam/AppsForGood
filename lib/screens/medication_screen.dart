@@ -17,11 +17,11 @@ class _MedicationScreenState extends State<MedicationScreen> {
   final _startDateController = TextEditingController();
   final _notesController = TextEditingController();
 
-  List<Medication> _savedPlans = const [];
-  Set<String> _favoriteMeds = <String>{};
-  String? _selectedMedication;
-  int _frequencyCount = 1;
-  String _frequencyUnit = 'day';
+  List<Medication> _plans = const [];
+  Set<String> _favorites = <String>{};
+  String? _selectedMed;
+  int _freqCount = 1;
+  String _freqUnit = 'day';
   bool _saving = false;
 
   final List<_MedicationCatalogItem> _catalog = const [
@@ -61,8 +61,8 @@ class _MedicationScreenState extends State<MedicationScreen> {
   void initState() {
     super.initState();
     _startDateController.text = _formatDate(DateTime.now());
-    _loadFavorites();
-    _loadSavedPlans();
+    _getFavorites();
+    _getPlans();
   }
 
   @override
@@ -95,11 +95,11 @@ class _MedicationScreenState extends State<MedicationScreen> {
     });
   }
 
-  Future<void> _loadFavorites() async {
-    final favorites = await FrontendAccountStore.instance.getFavoriteMedications();
+  Future<void> _getFavorites() async {
+    final list = await FrontendAccountStore.instance.getFavoriteMedications();
     if (!mounted) return;
     setState(() {
-      _favoriteMeds = favorites.toSet();
+      _favorites = list.toSet();
     });
   }
 
@@ -107,24 +107,24 @@ class _MedicationScreenState extends State<MedicationScreen> {
     await FrontendAccountStore.instance.toggleFavoriteMedication(genericName);
     if (!mounted) return;
     setState(() {
-      if (_favoriteMeds.contains(genericName)) {
-        _favoriteMeds.remove(genericName);
+      if (_favorites.contains(genericName)) {
+        _favorites.remove(genericName);
       } else {
-        _favoriteMeds.add(genericName);
+        _favorites.add(genericName);
       }
     });
   }
 
-  Future<void> _loadSavedPlans() async {
+  Future<void> _getPlans() async {
     final plans = await DatabaseHelper.instance.getAllMedications();
     if (!mounted) return;
     setState(() {
-      _savedPlans = plans;
+      _plans = plans;
     });
   }
 
-  Future<void> _addMedicationPlan() async {
-    if (_selectedMedication == null ||
+  Future<void> _addPlan() async {
+    if (_selectedMed == null ||
         _dosageController.text.trim().isEmpty ||
         _timeController.text.trim().isEmpty ||
         _startDateController.text.trim().isEmpty) {
@@ -137,10 +137,10 @@ class _MedicationScreenState extends State<MedicationScreen> {
     setState(() => _saving = true);
 
     final plan = Medication(
-      name: _selectedMedication!,
+      name: _selectedMed!,
       dosage: _dosageController.text.trim(),
-      frequencyCount: _frequencyCount,
-      frequencyUnit: _frequencyUnit,
+      frequencyCount: _freqCount,
+      frequencyUnit: _freqUnit,
       timesList: _timeController.text.trim(),
       startDate: _startDateController.text.trim(),
       notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
@@ -148,14 +148,14 @@ class _MedicationScreenState extends State<MedicationScreen> {
     );
 
     await DatabaseHelper.instance.insertMedication(plan);
-    await _loadSavedPlans();
+    await _getPlans();
 
     if (!mounted) return;
 
     setState(() {
       _dosageController.clear();
       _notesController.clear();
-      _selectedMedication = null;
+      _selectedMed = null;
       _saving = false;
     });
 
@@ -174,15 +174,21 @@ class _MedicationScreenState extends State<MedicationScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final filtered = _catalog
-                .where((item) => item.searchableLabel.contains(query.toLowerCase()))
-                .toList()
-              ..sort((a, b) {
-                final aFav = _favoriteMeds.contains(a.generic);
-                final bFav = _favoriteMeds.contains(b.generic);
-                if (aFav != bFav) return aFav ? -1 : 1;
-                return a.generic.compareTo(b.generic);
-              });
+            final filtered = <_MedicationCatalogItem>[];
+            final q = query.toLowerCase();
+            for (final item in _catalog) {
+              if (item.searchableLabel.contains(q)) {
+                filtered.add(item);
+              }
+            }
+            filtered.sort((a, b) {
+              final aFav = _favorites.contains(a.generic);
+              final bFav = _favorites.contains(b.generic);
+              if (aFav != bFav) {
+                return aFav ? -1 : 1;
+              }
+              return a.generic.compareTo(b.generic);
+            });
 
             return Padding(
               padding: EdgeInsets.only(
@@ -219,7 +225,7 @@ class _MedicationScreenState extends State<MedicationScreen> {
                               separatorBuilder: (_, _) => const SizedBox(height: 6),
                               itemBuilder: (context, index) {
                                 final med = filtered[index];
-                                final isFavorite = _favoriteMeds.contains(med.generic);
+                                final isFavorite = _favorites.contains(med.generic);
                                 return ListTile(
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   tileColor: const Color(0xFFFFFBFF),
@@ -228,7 +234,7 @@ class _MedicationScreenState extends State<MedicationScreen> {
                                       ? Text('Also: ${med.brands}')
                                       : const Text('No listed brand aliases'),
                                   onTap: () {
-                                    setState(() => _selectedMedication = med.generic);
+                                    setState(() => _selectedMed = med.generic);
                                     Navigator.pop(context);
                                   },
                                   trailing: IconButton(
@@ -298,28 +304,28 @@ class _MedicationScreenState extends State<MedicationScreen> {
                   suffixIcon: Icon(Icons.arrow_drop_down_circle_outlined),
                 ),
                 child: Text(
-                  _selectedMedication ?? 'Choose from medication list',
+                  _selectedMed ?? 'Choose from medication list',
                   style: TextStyle(
-                    color: _selectedMedication == null
+                    color: _selectedMed == null
                         ? Theme.of(context).hintColor
                         : Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
               ),
             ),
-            if (_favoriteMeds.isNotEmpty) ...[
+            if (_favorites.isNotEmpty) ...[
               const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerLeft,
                 child: Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _favoriteMeds
+                  children: _favorites
                       .map(
                         (med) => ActionChip(
                           avatar: const Icon(Icons.favorite, color: Colors.pinkAccent, size: 16),
                           label: Text(med),
-                          onPressed: () => setState(() => _selectedMedication = med),
+                          onPressed: () => setState(() => _selectedMed = med),
                         ),
                       )
                       .toList(),
@@ -336,24 +342,24 @@ class _MedicationScreenState extends State<MedicationScreen> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    initialValue: _frequencyCount,
+                    initialValue: _freqCount,
                     decoration: const InputDecoration(labelText: 'Frequency'),
                     items: const [1, 2, 3, 4]
                         .map((value) => DropdownMenuItem(value: value, child: Text('$value')))
                         .toList(),
-                    onChanged: (value) => setState(() => _frequencyCount = value ?? 1),
+                    onChanged: (value) => setState(() => _freqCount = value ?? 1),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    initialValue: _frequencyUnit,
+                    initialValue: _freqUnit,
                     decoration: const InputDecoration(labelText: 'Per'),
                     items: const [
                       DropdownMenuItem(value: 'day', child: Text('Day')),
                       DropdownMenuItem(value: 'week', child: Text('Week')),
                     ],
-                    onChanged: (value) => setState(() => _frequencyUnit = value ?? 'day'),
+                    onChanged: (value) => setState(() => _freqUnit = value ?? 'day'),
                   ),
                 ),
               ],
@@ -383,7 +389,7 @@ class _MedicationScreenState extends State<MedicationScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _saving ? null : _addMedicationPlan,
+                onPressed: _saving ? null : _addPlan,
                 child: _saving
                     ? const SizedBox(
                         width: 20,
@@ -395,12 +401,12 @@ class _MedicationScreenState extends State<MedicationScreen> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: _savedPlans.isEmpty
+              child: _plans.isEmpty
                   ? const Center(child: Text('No medications added yet. Start by selecting one above.'))
                   : ListView.builder(
-                      itemCount: _savedPlans.length,
+                      itemCount: _plans.length,
                       itemBuilder: (context, index) {
-                        final plan = _savedPlans[index];
+                        final plan = _plans[index];
                         return Card(
                           child: ListTile(
                             title: Text('${plan.name} - ${plan.dosage}'),
@@ -414,7 +420,7 @@ class _MedicationScreenState extends State<MedicationScreen> {
                               onPressed: () async {
                                 if (plan.id == null) return;
                                 await DatabaseHelper.instance.deleteMedication(plan.id!);
-                                await _loadSavedPlans();
+                                await _getPlans();
                               },
                             ),
                           ),

@@ -16,12 +16,12 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  late Future<_DashboardInsights> _insightsFuture;
+  late Future<_DashboardInsights> _future;
 
   @override
   void initState() {
     super.initState();
-    _insightsFuture = _loadInsights();
+    _future = _getInsights();
   }
 
   Future<void> _signOut(BuildContext context) async {
@@ -30,40 +30,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
   }
 
-  Future<_DashboardInsights> _loadInsights() async {
-    final dailyLogs = await DatabaseHelper.instance.getAllDailyLogs();
-    final seizureLogs = await DatabaseHelper.instance.getAllSeizureLogs();
-    final normalDays = max(0, dailyLogs.length - seizureLogs.length);
+  Future<_DashboardInsights> _getInsights() async {
+    final daily = await DatabaseHelper.instance.getAllDailyLogs();
+    final seizure = await DatabaseHelper.instance.getAllSeizureLogs();
+    final normal = max(0, daily.length - seizure.length);
 
-    if (dailyLogs.length < 10 || seizureLogs.length < 10) {
+    if (daily.length < 10 || seizure.length < 10) {
       return _DashboardInsights.insufficientData(
-        dailyCount: dailyLogs.length,
-        seizureCount: seizureLogs.length,
-        normalCount: normalDays,
+        dailyCount: daily.length,
+        seizureCount: seizure.length,
+        normalCount: normal,
       );
     }
 
     final analysis = await TriggerService().analyzeTriggers();
-    final activeTriggers = analysis.where((result) => result.isTrigger).toList()
-      ..sort((a, b) => b.weight.compareTo(a.weight));
+    final active = <TriggerResult>[];
+    for (final item in analysis) {
+      if (item.isTrigger) {
+        active.add(item);
+      }
+    }
+    active.sort((a, b) => b.weight.compareTo(a.weight));
 
-    final riskScore = _calculateRiskScore(activeTriggers);
+    final risk = _riskFrom(active);
     return _DashboardInsights.withData(
-      dailyCount: dailyLogs.length,
-      seizureCount: seizureLogs.length,
-      normalCount: normalDays,
-      riskScore: riskScore,
-      topTrigger: activeTriggers.isEmpty ? null : activeTriggers.first,
-      activeTriggerCount: activeTriggers.length,
+      dailyCount: daily.length,
+      seizureCount: seizure.length,
+      normalCount: normal,
+      riskScore: risk,
+      topTrigger: active.isEmpty ? null : active.first,
+      activeTriggerCount: active.length,
     );
   }
 
-  double _calculateRiskScore(List<TriggerResult> activeTriggers) {
-    if (activeTriggers.isEmpty) return 0.2;
-    final averageWeight =
-        activeTriggers.fold<double>(0.0, (sum, result) => sum + result.weight) /
-            activeTriggers.length;
-    return min(0.95, 0.25 + (averageWeight * 0.35) + (activeTriggers.length * 0.08));
+  double _riskFrom(List<TriggerResult> active) {
+    if (active.isEmpty) {
+      return 0.2;
+    }
+
+    var total = 0.0;
+    for (final t in active) {
+      total += t.weight;
+    }
+
+    final avg = total / active.length;
+    return min(0.95, 0.25 + (avg * 0.35) + (active.length * 0.08));
   }
 
   String _riskLabel(double score) {
@@ -133,7 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 12),
           FutureBuilder<_DashboardInsights>(
-            future: _insightsFuture,
+            future: _future,
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
                 return const Card(
@@ -301,7 +312,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             spacing: 8,
             runSpacing: 8,
             children: const [
-              _ActionButton(label: 'Log Seizure', route: '/log-seizure'),
+              _ActionButton(label: 'Daily Entry', route: '/log-seizure'),
               _ActionButton(label: 'Track Triggers', route: '/triggers'),
               _ActionButton(label: 'Medication', route: '/medication'),
               _ActionButton(label: 'Profile', route: '/profile'),

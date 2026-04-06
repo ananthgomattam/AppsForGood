@@ -15,32 +15,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _nameController = TextEditingController();
   final _doctorController = TextEditingController();
   final _emergencyController = TextEditingController();
-  bool _riskNotifications = true;
+  bool _riskAlerts = true;
   Profile? _profile;
   bool _saving = false;
-  String _currentUser = 'Guest';
+  String _user = 'Guest';
   List<FrontendAccount> _accounts = const [];
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentUser();
+    _loadUser();
   }
 
-  Future<void> _loadCurrentUser() async {
+  Future<void> _loadUser() async {
     final user = await FrontendAccountStore.instance.getCurrentUsername();
     final accounts = await FrontendAccountStore.instance.getAccounts();
     final profile = await DatabaseHelper.instance.getProfile();
     if (!mounted) return;
     setState(() {
-      _currentUser = user ?? 'Guest';
+      _user = user ?? 'Guest';
       _accounts = accounts;
       _profile = profile;
       if (profile != null) {
         _nameController.text = profile.name;
         _doctorController.text = profile.doctorName ?? '';
         _emergencyController.text = profile.emergencyContactName ?? '';
-        _riskNotifications = profile.seizureNotifications;
+        _riskAlerts = profile.seizureNotifications;
       }
     });
   }
@@ -49,7 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await FrontendAccountStore.instance.setCurrentUser(username);
     if (!mounted) return;
     setState(() {
-      _currentUser = username;
+      _user = username;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Switched to $username')),
@@ -62,7 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
   }
 
-  Future<void> _saveProfile() async {
+  Future<void> _save() async {
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Name is required to save your profile.')),
@@ -90,7 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       emergencyContactRelation: base?.emergencyContactRelation,
       dailyLogRemainderHour: base?.dailyLogRemainderHour ?? 20,
       dailyLogRemainderMinute: base?.dailyLogRemainderMinute ?? 0,
-      seizureNotifications: _riskNotifications,
+      seizureNotifications: _riskAlerts,
       createdAt: base?.createdAt ?? DateTime.now().toIso8601String(),
     );
 
@@ -141,7 +141,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Signed in as $_currentUser',
+                            'Signed in as $_user',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
@@ -162,7 +162,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: _accounts
-                            .where((account) => account.username != _currentUser)
+                            .where((account) => account.username != _user)
                             .map(
                               (account) => ActionChip(
                                 avatar: const Icon(Icons.person_outline, size: 16),
@@ -207,15 +207,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                 title: const Text('Enable seizure risk notifications'),
                 subtitle: const Text('Receive reminders during high-risk periods.'),
-                value: _riskNotifications,
-                onChanged: (value) => setState(() => _riskNotifications = value),
+                value: _riskAlerts,
+                onChanged: (value) => setState(() => _riskAlerts = value),
               ),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _saving ? null : _saveProfile,
+                onPressed: _saving ? null : _save,
                 child: _saving
                     ? const SizedBox(
                         width: 20,
