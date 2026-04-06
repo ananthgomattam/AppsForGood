@@ -39,6 +39,7 @@ dependencies:
   # UI
   shared_preferences: ^2.2.2  # stores simple things like first_launch flag
   intl: ^0.19.0               # date formatting
+  crypto: ^3.0.3              # local password hashing
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

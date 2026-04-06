@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'config/theme.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/log_seizure_screen.dart';
 import 'screens/medication_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -23,6 +24,7 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       home: const SplashScreen(),
       routes: {
+        '/login': (_) => const LoginScreen(),
         '/onboarding': (_) => const OnboardingScreen(),
         '/dashboard': (_) => const DashboardScreen(),
         '/log-seizure': (_) => const LogSeizureScreen(),

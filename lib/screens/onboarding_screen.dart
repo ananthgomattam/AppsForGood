@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../data/profile.dart';
+import '../database/database_helper.dart';
+
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -12,7 +15,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _nameController = TextEditingController();
   final _dobController = TextEditingController();
   final _sleepController = TextEditingController(text: '8');
+  DateTime? _selectedDob;
   bool _notifications = true;
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -20,6 +25,67 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _dobController.dispose();
     _sleepController.dispose();
     super.dispose();
+  }
+
+  String _formatDate(DateTime date) {
+    final yyyy = date.year.toString().padLeft(4, '0');
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '$yyyy-$mm-$dd';
+  }
+
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDob ?? DateTime(now.year - 20),
+      firstDate: DateTime(1900),
+      lastDate: now,
+    );
+    if (picked == null) return;
+    setState(() {
+      _selectedDob = picked;
+      _dobController.text = _formatDate(picked);
+    });
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    final existing = await DatabaseHelper.instance.getProfile();
+    final profile = Profile(
+      id: existing?.id,
+      name: _nameController.text.trim(),
+      dateOfBirth: _dobController.text.trim(),
+      doctorName: existing?.doctorName,
+      emergencyContactName: existing?.emergencyContactName,
+      diagnosisDate: existing?.diagnosisDate,
+      diagnosisType: existing?.diagnosisType,
+      gender: existing?.gender,
+      doctorPhone: existing?.doctorPhone,
+      emergencyContactPhone: existing?.emergencyContactPhone,
+      emergencyContactRelation: existing?.emergencyContactRelation,
+      hospitalPreference: existing?.hospitalPreference,
+      dailyLogRemainderHour: 20,
+      dailyLogRemainderMinute: 0,
+      seizureNotifications: _notifications,
+      createdAt: existing?.createdAt ?? DateTime.now().toIso8601String(),
+    );
+
+    if (existing == null) {
+      await DatabaseHelper.instance.insertProfile(profile);
+    } else {
+      await DatabaseHelper.instance.updateProfile(profile);
+    }
+
+    if (!mounted) return;
+
+    setState(() => _saving = false);
+    Navigator.pushReplacementNamed(context, '/dashboard');
   }
 
   @override
@@ -47,8 +113,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _dobController,
+                readOnly: true,
+                onTap: _pickDob,
                 decoration: const InputDecoration(
-                  labelText: 'Date of birth (YYYY-MM-DD)',
+                  labelText: 'Date of birth',
+                  suffixIcon: Icon(Icons.calendar_month_outlined),
                 ),
                 validator: (v) => (v == null || v.trim().isEmpty)
                     ? 'Date of birth is required'
@@ -77,12 +146,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    Navigator.pushReplacementNamed(context, '/dashboard');
-                  }
-                },
-                child: const Text('Continue'),
+                onPressed: _saving ? null : _saveProfile,
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Continue'),
               ),
             ],
           ),
