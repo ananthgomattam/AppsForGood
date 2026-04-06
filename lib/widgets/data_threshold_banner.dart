@@ -25,15 +25,27 @@ class DataThresholdBanner extends StatelessWidget {
 
     if (ready) return const SizedBox.shrink();
 
-    final message = forTTest
-        ? 'Keep logging to unlock verified trigger insights. '
-            '${seizureRemaining > 0 ? '$seizureRemaining more seizure day(s)' : ''}'
-            '${seizureRemaining > 0 && normalRemaining > 0 ? ' and ' : ''}'
-            '${normalRemaining > 0 ? '$normalRemaining more normal day(s)' : ''} needed.'
-        : 'Not enough data yet. '
-            '${seizureRemaining > 0 ? '$seizureRemaining more seizure day(s)' : ''}'
-            '${seizureRemaining > 0 && normalRemaining > 0 ? ' and ' : ''}'
-            '${normalRemaining > 0 ? '$normalRemaining more normal day(s)' : ''} needed.';
+    var message = '';
+    if (forTTest) {
+      message = 'Keep logging to unlock verified trigger insights. ';
+    } else {
+      message = 'Not enough data yet. ';
+    }
+
+    var extra = '';
+    if (seizureRemaining > 0) {
+      extra = '$seizureRemaining more seizure day(s)';
+    }
+
+    if (seizureRemaining > 0 && normalRemaining > 0) {
+      extra += ' and ';
+    }
+
+    if (normalRemaining > 0) {
+      extra += '$normalRemaining more normal day(s)';
+    }
+
+    message += '$extra needed.';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

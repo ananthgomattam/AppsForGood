@@ -13,24 +13,24 @@ class TriggersScreen extends StatefulWidget {
 }
 
 class _TriggersScreenState extends State<TriggersScreen> {
-  late Future<_TriggerPageData> _future;
+  late Future<_TriggerPageData> _dataFuture;
 
   @override
   void initState() {
     super.initState();
-    _future = _loadData();
+    _dataFuture = _getData();
   }
 
-  Future<_TriggerPageData> _loadData() async {
-    final dailyLogs = await DatabaseHelper.instance.getAllDailyLogs();
-    final seizureLogs = await DatabaseHelper.instance.getAllSeizureLogs();
-    final normalDays = (dailyLogs.length - seizureLogs.length).clamp(0, dailyLogs.length);
+  Future<_TriggerPageData> _getData() async {
+    final daily = await DatabaseHelper.instance.getAllDailyLogs();
+    final seizure = await DatabaseHelper.instance.getAllSeizureLogs();
+    final normal = (daily.length - seizure.length).clamp(0, daily.length);
 
-    if (dailyLogs.length < 10 || seizureLogs.length < 10) {
+    if (daily.length < 10 || seizure.length < 10) {
       return _TriggerPageData.insufficient(
-        dailyCount: dailyLogs.length,
-        seizureCount: seizureLogs.length,
-        normalCount: normalDays,
+        dailyCount: daily.length,
+        seizureCount: seizure.length,
+        normalCount: normal,
       );
     }
 
@@ -38,9 +38,9 @@ class _TriggersScreenState extends State<TriggersScreen> {
     results.sort((a, b) => b.weight.compareTo(a.weight));
 
     return _TriggerPageData.ready(
-      dailyCount: dailyLogs.length,
-      seizureCount: seizureLogs.length,
-      normalCount: normalDays,
+      dailyCount: daily.length,
+      seizureCount: seizure.length,
+      normalCount: normal,
       results: results,
     );
   }
@@ -50,7 +50,7 @@ class _TriggersScreenState extends State<TriggersScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Trigger Insights')),
       body: FutureBuilder<_TriggerPageData>(
-        future: _future,
+        future: _dataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());

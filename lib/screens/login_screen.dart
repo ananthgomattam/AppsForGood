@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadAccounts();
+    _getAccounts();
   }
 
   @override
@@ -45,15 +45,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     super.dispose();
   }
 
-  Future<void> _loadAccounts() async {
-    final accounts = await FrontendAccountStore.instance.getAccounts();
+  Future<void> _getAccounts() async {
+    final list = await FrontendAccountStore.instance.getAccounts();
     if (!mounted) return;
     setState(() {
-      _accounts = accounts;
+      _accounts = list;
     });
   }
 
-  Future<void> _handleSignIn() async {
+  Future<void> _signIn() async {
     if (!_signInFormKey.currentState!.validate()) {
       return;
     }
@@ -76,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     Navigator.pushReplacementNamed(context, '/dashboard');
   }
 
-  Future<void> _handleCreateAccount() async {
+  Future<void> _createAccount() async {
     if (!_createFormKey.currentState!.validate()) {
       return;
     }
@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       return;
     }
 
-    await _loadAccounts();
+    await _getAccounts();
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/dashboard');
   }
@@ -235,7 +235,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: _busy ? null : _handleSignIn,
+              onPressed: _busy ? null : _signIn,
               child: _busy
                   ? const SizedBox(
                       width: 20,
@@ -322,7 +322,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: _busy ? null : _handleCreateAccount,
+              onPressed: _busy ? null : _createAccount,
               child: _busy
                   ? const SizedBox(
                       width: 20,
