@@ -1,38 +1,49 @@
 # AppsForGood (ForSeizure)
 
 ## Overview
-This project is a Flutter app that tracks user data and predicts a safety score based on patterns.  
-It is designed to help detect potential seizure risk using daily logs and external data like weather.
+This project is a Flutter app that tracks daily data and predicts a safety score based on patterns.  
+It is designed to help detect potential seizure risk using user input and external data like weather.
 
 ## Features
 - Stores daily logs
 - Calculates a safety score (0.0 to 1.0)
-- Uses location + weather data
+- Uses location and weather data
 - Saves data locally using a database
 - Triggers warnings if risk is high
 
 ## Requirements (Dependencies)
 
 ### Software Needed
-
 - Flutter SDK
-- Dart SDK (version 3.11 or higher)
-- Android Studio or VS Code
+- Dart SDK (3.11 or higher)
+- VS Code or Android Studio
 - Android Emulator or physical device
 
 ### Flutter Packages Used
-These are required and listed in `pubspec.yaml`:
-
-- `flutter` (main framework)
-- `sqflite` → local database (SQLite)
-- `path` → helps locate database files
-- `geolocator` → gets user location
-- `http` → makes API requests (weather)
-- `shared_preferences` → stores small data (like settings)
-- `intl` → date formatting
-- `crypto` → password hashing
-- `cupertino_icons` → UI icons
+- flutter
+- sqflite (database)
+- path (file locations)
+- geolocator (location)
+- http (API requests)
+- shared_preferences (small data storage)
+- intl (date formatting)
+- crypto (hashing)
+- cupertino_icons (UI)
 
 ### Dev Dependencies
-- `flutter_test`
-- `flutter_lints`
+- flutter_test
+- flutter_lints
+
+## Commands to Run
+
+git clone https://github.com/ananthgomattam/AppsForGood.git
+flutter pub get
+flutter run
+
+## Installation Guide
+
+1. Install Flutter:  
+https://docs.flutter.dev/get-started/install  
+
+2. Check installation:
+flutter doctor
