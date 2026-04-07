@@ -50,9 +50,14 @@ class FrontendAccountStore {
   Future<List<FrontendAccount>> getAccounts() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = prefs.getStringList(_accountsKey) ?? <String>[];
-    return encoded
-        .map((value) => FrontendAccount.fromMap(jsonDecode(value) as Map<String, dynamic>))
-        .toList();
+
+    final list = <FrontendAccount>[];
+    for (final value in encoded) {
+      final map = jsonDecode(value) as Map<String, dynamic>;
+      list.add(FrontendAccount.fromMap(map));
+    }
+
+    return list;
   }
 
   Future<String?> getCurrentUsername() async {
@@ -95,9 +100,16 @@ class FrontendAccountStore {
     required String password,
   }) async {
     final normalized = username.trim().toLowerCase();
-    final existing = await getAccounts();
+    final list = await getAccounts();
 
-    final account = existing.where((candidate) => candidate.username == normalized).firstOrNull;
+    FrontendAccount? account;
+    for (final item in list) {
+      if (item.username == normalized) {
+        account = item;
+        break;
+      }
+    }
+
     if (account == null) {
       return const AccountAuthResult(success: false, message: 'Account not found.');
     }
@@ -163,7 +175,11 @@ class FrontendAccountStore {
 
   Future<void> _writeAccounts(List<FrontendAccount> accounts) async {
     final prefs = await SharedPreferences.getInstance();
-    final encoded = accounts.map((account) => jsonEncode(account.toMap())).toList();
+    final encoded = <String>[];
+    for (final account in accounts) {
+      encoded.add(jsonEncode(account.toMap()));
+    }
+
     await prefs.setStringList(_accountsKey, encoded);
   }
 

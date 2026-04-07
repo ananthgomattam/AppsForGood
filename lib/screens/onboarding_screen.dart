@@ -13,16 +13,16 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _dobController = TextEditingController();
+  final _birthController = TextEditingController();
   final _sleepController = TextEditingController(text: '8');
-  DateTime? _selectedDob;
-  bool _notifications = true;
+  DateTime? _selectedBirth;
+  bool _notify = true;
   bool _saving = false;
 
   @override
   void dispose() {
     _nameController.dispose();
-    _dobController.dispose();
+    _birthController.dispose();
     _sleepController.dispose();
     super.dispose();
   }
@@ -34,22 +34,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return '$yyyy-$mm-$dd';
   }
 
-  Future<void> _pickDob() async {
+  Future<void> _pickBirth() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDob ?? DateTime(now.year - 20),
+      initialDate: _selectedBirth ?? DateTime(now.year - 20),
       firstDate: DateTime(1900),
       lastDate: now,
     );
     if (picked == null) return;
     setState(() {
-      _selectedDob = picked;
-      _dobController.text = _formatDate(picked);
+      _selectedBirth = picked;
+      _birthController.text = _formatDate(picked);
     });
   }
 
-  Future<void> _saveProfile() async {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -60,7 +60,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final profile = Profile(
       id: existing?.id,
       name: _nameController.text.trim(),
-      dateOfBirth: _dobController.text.trim(),
+      dateOfBirth: _birthController.text.trim(),
       doctorName: existing?.doctorName,
       emergencyContactName: existing?.emergencyContactName,
       diagnosisDate: existing?.diagnosisDate,
@@ -72,7 +72,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       hospitalPreference: existing?.hospitalPreference,
       dailyLogRemainderHour: 20,
       dailyLogRemainderMinute: 0,
-      seizureNotifications: _notifications,
+      seizureNotifications: _notify,
       createdAt: existing?.createdAt ?? DateTime.now().toIso8601String(),
     );
 
@@ -112,9 +112,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _dobController,
+                controller: _birthController,
                 readOnly: true,
-                onTap: _pickDob,
+                onTap: _pickBirth,
                 decoration: const InputDecoration(
                   labelText: 'Date of birth',
                   suffixIcon: Icon(Icons.calendar_month_outlined),
@@ -141,12 +141,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Enable seizure-risk notifications'),
-                value: _notifications,
-                onChanged: (value) => setState(() => _notifications = value),
+                value: _notify,
+                onChanged: (value) => setState(() => _notify = value),
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _saving ? null : _saveProfile,
+                onPressed: _saving ? null : _save,
                 child: _saving
                     ? const SizedBox(
                         width: 20,
