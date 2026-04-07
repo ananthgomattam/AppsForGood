@@ -1,22 +1,38 @@
-<<<<<<< HEAD
-# forseizure
+# AppsForGood (ForSeizure)
 
-A new Flutter project.
+## Overview
+This project is a Flutter app that tracks user data and predicts a safety score based on patterns.  
+It is designed to help detect potential seizure risk using daily logs and external data like weather.
 
-## Getting Started
+## Features
+- Stores daily logs
+- Calculates a safety score (0.0 to 1.0)
+- Uses location + weather data
+- Saves data locally using a database
+- Triggers warnings if risk is high
 
-This project is a starting point for a Flutter application.
+## Requirements (Dependencies)
 
-A few resources to get you started if this is your first Flutter project:
+### Software Needed
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- Flutter SDK
+- Dart SDK (version 3.11 or higher)
+- Android Studio or VS Code
+- Android Emulator or physical device
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-=======
-# AppsForGood
-This repository is for the 2026 Apps for Good Project
->>>>>>> f5268bdcd5e12c06e84c7b573785b9c610bc6adc
+### Flutter Packages Used
+These are required and listed in `pubspec.yaml`:
+
+- `flutter` (main framework)
+- `sqflite` → local database (SQLite)
+- `path` → helps locate database files
+- `geolocator` → gets user location
+- `http` → makes API requests (weather)
+- `shared_preferences` → stores small data (like settings)
+- `intl` → date formatting
+- `crypto` → password hashing
+- `cupertino_icons` → UI icons
+
+### Dev Dependencies
+- `flutter_test`
+- `flutter_lints`
