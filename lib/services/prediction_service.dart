@@ -77,14 +77,17 @@ class PredictionService {
     double rollingRisk = 0.0;
 
     if (recentLogs.isNotEmpty) {
-      avgSleep = recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) /
+      avgSleep =
+          recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) /
           recentLogs.length;
-      avgStress = recentLogs
+      avgStress =
+          recentLogs
               .map((l) => l.stressLevel.toDouble())
               .reduce((a, b) => a + b) /
           recentLogs.length;
-      final missedMedCount =
-          recentLogs.where((l) => !l.medicationAdherence).length;
+      final missedMedCount = recentLogs
+          .where((l) => !l.medicationAdherence)
+          .length;
 
       // Low average sleep over 7 days → adds risk
       if (avgSleep < 6.0) rollingRisk += 0.15;
@@ -124,8 +127,9 @@ class PredictionService {
     // Extra risk if seizure was in the last 48 hours
     if (recentSeizures.isNotEmpty) {
       final lastSeizureDate = DateTime.parse(recentSeizures.last.date);
-      final hoursSinceLastSeizure =
-          DateTime.now().difference(lastSeizureDate).inHours;
+      final hoursSinceLastSeizure = DateTime.now()
+          .difference(lastSeizureDate)
+          .inHours;
       if (hoursSinceLastSeizure < 48) seizureHistoryRisk += 0.20;
     }
 
@@ -193,10 +197,12 @@ class PredictionService {
     } else if (explanationParts.length == 1) {
       explanation = 'Detected: ${explanationParts[0]}';
     } else if (explanationParts.length == 2) {
-      explanation = 'Detected: ${explanationParts[0]} and ${explanationParts[1]}';
+      explanation =
+          'Detected: ${explanationParts[0]} and ${explanationParts[1]}';
     } else {
       final parts = explanationParts.sublist(0, explanationParts.length - 1);
-      explanation = 'Detected: ${parts.join(", ")}, and ${explanationParts.last}';
+      explanation =
+          'Detected: ${parts.join(", ")}, and ${explanationParts.last}';
     }
 
     if (interactionMultiplier > 1.0) explanation += ' (dangerous combination)';
@@ -219,10 +225,14 @@ class PredictionService {
     double multiplier = 1.0;
 
     final avgSleep = recentLogs.isNotEmpty
-        ? recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) / recentLogs.length
+        ? recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) /
+              recentLogs.length
         : 7.0;
     final avgStress = recentLogs.isNotEmpty
-        ? recentLogs.map((l) => l.stressLevel.toDouble()).reduce((a, b) => a + b) / recentLogs.length
+        ? recentLogs
+                  .map((l) => l.stressLevel.toDouble())
+                  .reduce((a, b) => a + b) /
+              recentLogs.length
         : 5.0;
 
     // Low sleep + high stress: clinically the most dangerous combination
@@ -244,18 +254,30 @@ class PredictionService {
   // Maps a factor name to its value in today's log
   double? _getFactorValue(DailyLog log, String factorName) {
     switch (factorName) {
-      case 'Sleep Hours':        return log.sleepHours;
-      case 'Sleep Quality':      return log.sleepQuality.toDouble();
-      case 'Sleep Interruptions':return log.sleepInterruptions.toDouble();
-      case 'Stress Level':       return log.stressLevel.toDouble();
-      case 'Diet Quality':       return log.dietQuality.toDouble();
-      case 'Medication':         return log.medicationAdherence ? 1.0 : 0.0;
-      case 'Drug Use':           return log.drugUse ? 1.0 : 0.0;
-      case 'Hormonal Changes':   return log.hormonalChanges == true ? 1.0 : 0.0;
-      case 'Temperature':        return log.temperature;
-      case 'Pressure':           return log.pressure;
-      case 'Humidity':           return log.humidity;
-      default:                   return null;
+      case 'Sleep Hours':
+        return log.sleepHours;
+      case 'Sleep Quality':
+        return log.sleepQuality.toDouble();
+      case 'Sleep Interruptions':
+        return log.sleepInterruptions.toDouble();
+      case 'Stress Level':
+        return log.stressLevel.toDouble();
+      case 'Diet Quality':
+        return log.dietQuality.toDouble();
+      case 'Medication':
+        return log.medicationAdherence ? 1.0 : 0.0;
+      case 'Drug Use':
+        return log.drugUse ? 1.0 : 0.0;
+      case 'Hormonal Changes':
+        return log.hormonalChanges == true ? 1.0 : 0.0;
+      case 'Temperature':
+        return log.temperature;
+      case 'Pressure':
+        return log.pressure;
+      case 'Humidity':
+        return log.humidity;
+      default:
+        return null;
     }
   }
 }
