@@ -37,7 +37,9 @@ It is designed to help detect potential seizure risk using user input and extern
 ## Commands to Run
 
 git clone https://github.com/ananthgomattam/AppsForGood.git
+
 flutter pub get
+
 flutter run
 
 ## Installation Guide
