@@ -1,18 +1,16 @@
-import 'dart:math';
-
 import '../data/daily_log.dart';
 import '../database/database_helper.dart';
 import 'trigger_service.dart';
 
 // Holds the full prediction output for today
 class PredictionResult {
-  final double safetyScore; // 0.0 (dangerous) to 1.0 (safe)
+  final double riskScore; // 0 (safe) to 100 (dangerous)
   final String riskLevel; // "Low", "Moderate", "High"
   final List<String> activeTriggers; // which triggers are active today
   final String explanation; // "High stress and poor sleep detected"
 
   PredictionResult({
-    required this.safetyScore,
+    required this.riskScore,
     required this.riskLevel,
     required this.activeTriggers,
     required this.explanation,
@@ -64,7 +62,8 @@ class PredictionService {
         ? (rawRisk / totalWeight).clamp(0.0, 1.0)
         : 0.0;
 
-    // Add rolling 7-day window risk based on recent patterns
+    // Rolling 7-day window — catches gradual buildup that today's log alone misses
+    // e.g. 6 days of poor sleep is far more dangerous than 1 bad night
     final recentLogs = sortedLogs
         .where((log) => log.date.compareTo(today.date) < 0)
         .toList()
@@ -72,37 +71,38 @@ class PredictionService {
         .take(7)
         .toList();
 
+    // Declared outside if block so they're accessible in explanation section
+    double avgSleep = 7.0;
+    double avgStress = 5.0;
     double rollingRisk = 0.0;
 
     if (recentLogs.isNotEmpty) {
-      final avgSleep =
-          recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) /
+      avgSleep = recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) /
           recentLogs.length;
-      final avgStress =
-          recentLogs
+      avgStress = recentLogs
               .map((l) => l.stressLevel.toDouble())
               .reduce((a, b) => a + b) /
           recentLogs.length;
-      final missedMedCount = recentLogs
-          .where((l) => !l.medicationAdherence)
-          .length;
+      final missedMedCount =
+          recentLogs.where((l) => !l.medicationAdherence).length;
 
       // Low average sleep over 7 days → adds risk
       if (avgSleep < 6.0) rollingRisk += 0.15;
-      if (avgSleep < 5.0) rollingRisk += 0.10; // extra penalty for severe deprivation
+      if (avgSleep < 5.0) rollingRisk += 0.10;
 
       // High average stress over 7 days → adds risk
       if (avgStress > 7.0) rollingRisk += 0.15;
       if (avgStress > 8.5) rollingRisk += 0.10;
 
-      // Missed medication multiple days in a row → adds significant risk
+      // Missed medication multiple days → adds significant risk
       if (missedMedCount >= 2) rollingRisk += 0.15;
       if (missedMedCount >= 4) rollingRisk += 0.15;
     }
 
     rollingRisk = rollingRisk.clamp(0.0, 1.0);
 
-    // Add seizure history risk based on recent seizures
+    // Seizure history risk — recent seizures raise baseline risk
+    // Brain is more vulnerable shortly after a seizure
     final recentSeizures = allSeizureLogs
         .where((log) => log.date.compareTo(today.date) < 0)
         .toList();
@@ -122,19 +122,17 @@ class PredictionService {
     if (recentSeizureCount >= 5) seizureHistoryRisk += 0.10;
 
     // Extra risk if seizure was in the last 48 hours
-    // Brain is most vulnerable right after a seizure
     if (recentSeizures.isNotEmpty) {
       final lastSeizureDate = DateTime.parse(recentSeizures.last.date);
-      final hoursSinceLastSeizure = DateTime.now()
-          .difference(lastSeizureDate)
-          .inHours;
+      final hoursSinceLastSeizure =
+          DateTime.now().difference(lastSeizureDate).inHours;
       if (hoursSinceLastSeizure < 48) seizureHistoryRisk += 0.20;
     }
 
     seizureHistoryRisk = seizureHistoryRisk.clamp(0.0, 1.0);
 
-    // **STEP 1: Calculate medication streak (consecutive days of adherence)**
-    // This identifies if user just stopped taking meds, amplifying other risks
+    // Medication streak — consecutive days of adherence
+    // Short streak means user recently stopped taking meds
     int medicationStreak = 0;
     for (final log in sortedLogs.reversed) {
       if (log.medicationAdherence) {
@@ -144,13 +142,11 @@ class PredictionService {
       }
     }
 
-    // **STEP 2: Combine all risk factors with weighted average**
-    // Each factor contributes differently to overall risk
-    // - Trigger deviation: 35% (what's abnormal TODAY)
-    // - Rolling patterns: 30% (7-day trends catch gradual buildup)
-    // - Seizure history: 25% (recent seizure activity primes the brain)
-    // - Medication streak penalty: 10% (non-adherence is critical)
-
+    // Combine all risk factors with weighted average
+    // Trigger deviation: 35% — what's abnormal TODAY
+    // Rolling patterns:  30% — 7-day trends catch gradual buildup
+    // Seizure history:   25% — recent activity primes the brain
+    // Medication penalty: 10% — non-adherence is critical
     final medicationPenalty = medicationStreak < 3 ? 0.2 : 0.0;
     double combinedRisk =
         (triggerRisk * 0.35) +
@@ -158,111 +154,63 @@ class PredictionService {
         (seizureHistoryRisk * 0.25) +
         (medicationPenalty * 0.10);
 
-    // **STEP 3: Calculate interaction effects using ANOVA**
-    // Tests if factor combinations (like low sleep + high stress) have synergistic effects
-    double interactionMultiplier = await _calculateInteractionEffects(
+    // Apply ANOVA interaction multiplier
+    // Dangerous combinations amplify risk beyond individual factors
+    double interactionMultiplier = _calculateInteractionEffects(
       today: today,
       recentLogs: recentLogs,
       medicationStreak: medicationStreak,
       activeTriggers: activeTriggers,
-      sortedLogs: sortedLogs,
     );
 
-    // Apply multiplier to intensify risk if dangerous combinations detected
     combinedRisk = (combinedRisk * interactionMultiplier).clamp(0.0, 1.0);
 
-    // **STEP 4: Convert risk score to safety score (inverse scale)**
-    // safetyScore = 1.0 - combinedRisk
-    // High risk = low safety, low risk = high safety
-    final safetyScore = 1.0 - combinedRisk;
+    // Convert to 0-100 risk score — higher = more dangerous
+    final riskScore = (combinedRisk * 100).roundToDouble();
 
-    // **STEP 5: Classify into risk level buckets**
+    // Classify into risk level buckets
     String riskLevel;
-    if (safetyScore >= 0.7) {
-      riskLevel = "Low";
-    } else if (safetyScore >= 0.4) {
-      riskLevel = "Moderate";
+    if (riskScore < 30) {
+      riskLevel = 'Low';
+    } else if (riskScore < 60) {
+      riskLevel = 'Moderate';
     } else {
-      riskLevel = "High";
+      riskLevel = 'High';
     }
 
-    // **STEP 6: Generate human-readable explanation**
+    // Generate human readable explanation
     final explanationParts = <String>[];
 
-    final avgSleep = recentLogs.isNotEmpty
-        ? recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) /
-              recentLogs.length
-        : 7.0;
-    final avgStress = recentLogs.isNotEmpty
-        ? recentLogs
-                  .map((l) => l.stressLevel.toDouble())
-                  .reduce((a, b) => a + b) /
-              recentLogs.length
-        : 5.0;
+    if (avgSleep < 6.0) explanationParts.add('poor sleep (${avgSleep.toStringAsFixed(1)} hrs)');
+    if (avgStress > 7.0) explanationParts.add('high stress (${avgStress.toStringAsFixed(1)}/10)');
+    if (medicationStreak < 2) explanationParts.add('missed medication');
+    if (recentSeizureCount >= 3) explanationParts.add('recent seizure activity');
+    if (today.hormonalChanges == true) explanationParts.add('hormonal changes');
 
-    if (avgSleep < 6.0) {
-      explanationParts.add("poor sleep (${avgSleep.toStringAsFixed(1)} hrs)");
-    }
-    if (avgStress > 7.0) {
-      explanationParts.add("high stress (${avgStress.toStringAsFixed(1)}/10)");
-    }
-    if (medicationStreak < 2) {
-      explanationParts.add("missed medication");
-    }
-    if (recentSeizureCount >= 3) {
-      explanationParts.add("recent seizure activity");
-    }
-    if (today.hormonalChanges == true) {
-      explanationParts.add("hormonal changes");
-    }
-
-    // Format explanation based on number of detected issues
     String explanation;
     if (explanationParts.isEmpty) {
-      explanation = "All factors within normal range";
+      explanation = 'All factors within normal range';
     } else if (explanationParts.length == 1) {
-      explanation = "Detected: ${explanationParts[0]}";
+      explanation = 'Detected: ${explanationParts[0]}';
     } else if (explanationParts.length == 2) {
-      explanation =
-          "Detected: ${explanationParts[0]} and ${explanationParts[1]}";
+      explanation = 'Detected: ${explanationParts[0]} and ${explanationParts[1]}';
     } else {
       final parts = explanationParts.sublist(0, explanationParts.length - 1);
-      explanation =
-          "Detected: ${parts.join(", ")}, and ${explanationParts.last}";
+      explanation = 'Detected: ${parts.join(", ")}, and ${explanationParts.last}';
     }
 
-    // Note if dangerous interaction detected
-    if (interactionMultiplier > 1.0) {
-      explanation += " (dangerous combination)";
-    }
+    if (interactionMultiplier > 1.0) explanation += ' (dangerous combination)';
 
-    // **STEP 7: Return complete prediction result**
     return PredictionResult(
-      safetyScore: safetyScore,
+      riskScore: riskScore,
       riskLevel: riskLevel,
       activeTriggers: activeTriggers,
       explanation: explanation,
     );
   }
 
-  // Helper: Calculate interaction effects
-  Future<double> _calculateInteractionEffects({
-    required DailyLog today,
-    required List<DailyLog> recentLogs,
-    required int medicationStreak,
-    required List<String> activeTriggers,
-    required List<DailyLog> sortedLogs,
-  }) async {
-    return _getHeuristicInteractionMultiplier(
-      today: today,
-      recentLogs: recentLogs,
-      medicationStreak: medicationStreak,
-      activeTriggers: activeTriggers,
-    );
-  }
-
-  // Helper: Heuristic fallback when insufficient data**
-  double _getHeuristicInteractionMultiplier({
+  // Calculates interaction multiplier — how much dangerous combinations amplify risk
+  double _calculateInteractionEffects({
     required DailyLog today,
     required List<DailyLog> recentLogs,
     required int medicationStreak,
@@ -271,25 +219,21 @@ class PredictionService {
     double multiplier = 1.0;
 
     final avgSleep = recentLogs.isNotEmpty
-        ? recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) /
-              recentLogs.length
+        ? recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) / recentLogs.length
         : 7.0;
     final avgStress = recentLogs.isNotEmpty
-        ? recentLogs
-                  .map((l) => l.stressLevel.toDouble())
-                  .reduce((a, b) => a + b) /
-              recentLogs.length
+        ? recentLogs.map((l) => l.stressLevel.toDouble()).reduce((a, b) => a + b) / recentLogs.length
         : 5.0;
 
-    // Low sleep + high stress: 1.4x
+    // Low sleep + high stress: clinically the most dangerous combination
     if (avgSleep < 6.0 && avgStress > 7.0) {
       multiplier = 1.4;
     }
-    // Missed medication + active triggers: 1.35x
+    // Missed medication + any active trigger: non-adherence amplifies everything
     else if (medicationStreak < 2 && activeTriggers.isNotEmpty) {
       multiplier = 1.35;
     }
-    // Hormonal changes + high stress: 1.25x
+    // Hormonal changes + high stress: strong interaction for hormonal trigger users
     else if (today.hormonalChanges == true && today.stressLevel > 7) {
       multiplier = 1.25;
     }
@@ -297,32 +241,21 @@ class PredictionService {
     return multiplier;
   }
 
+  // Maps a factor name to its value in today's log
   double? _getFactorValue(DailyLog log, String factorName) {
     switch (factorName) {
-      case 'Sleep Hours':
-        return log.sleepHours;
-      case 'Sleep Quality':
-        return log.sleepQuality.toDouble();
-      case 'Sleep Interruptions':
-        return log.sleepInterruptions.toDouble();
-      case 'Stress Level':
-        return log.stressLevel.toDouble();
-      case 'Diet Quality':
-        return log.dietQuality.toDouble();
-      case 'Medication':
-        return log.medicationAdherence ? 1.0 : 0.0;
-      case 'Drug Use':
-        return log.drugUse ? 1.0 : 0.0;
-      case 'Hormonal Changes':
-        return log.hormonalChanges == true ? 1.0 : 0.0;
-      case 'Temperature':
-        return log.temperature;
-      case 'Pressure':
-        return log.pressure;
-      case 'Humidity':
-        return log.humidity;
-      default:
-        return null;
+      case 'Sleep Hours':        return log.sleepHours;
+      case 'Sleep Quality':      return log.sleepQuality.toDouble();
+      case 'Sleep Interruptions':return log.sleepInterruptions.toDouble();
+      case 'Stress Level':       return log.stressLevel.toDouble();
+      case 'Diet Quality':       return log.dietQuality.toDouble();
+      case 'Medication':         return log.medicationAdherence ? 1.0 : 0.0;
+      case 'Drug Use':           return log.drugUse ? 1.0 : 0.0;
+      case 'Hormonal Changes':   return log.hormonalChanges == true ? 1.0 : 0.0;
+      case 'Temperature':        return log.temperature;
+      case 'Pressure':           return log.pressure;
+      case 'Humidity':           return log.humidity;
+      default:                   return null;
     }
   }
 }
