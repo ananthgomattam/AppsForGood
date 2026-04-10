@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../database/database_helper.dart';
+
 class FrontendAccount {
   final String username;
   final String passwordHash;
@@ -92,6 +94,9 @@ class FrontendAccountStore {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_currentUserKey, normalized);
 
+    // Set current user in database
+    await DatabaseHelper.setCurrentUser(normalized);
+
     return const AccountAuthResult(success: true);
   }
 
@@ -120,12 +125,19 @@ class FrontendAccountStore {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_currentUserKey, normalized);
+
+    // Set current user in database
+    await DatabaseHelper.setCurrentUser(normalized);
+
     return const AccountAuthResult(success: true);
   }
 
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_currentUserKey);
+
+    // Disconnect from database
+    await DatabaseHelper.clearCurrentUser();
   }
 
   Future<void> setCurrentUser(String username) async {
@@ -142,6 +154,9 @@ class FrontendAccountStore {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_currentUserKey, normalized);
+
+    // Update database for new user
+    await DatabaseHelper.setCurrentUser(normalized);
   }
 
   Future<List<String>> getFavoriteMedications({String? username}) async {

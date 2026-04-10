@@ -75,6 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final base = _profile;
     final updated = Profile(
       id: base?.id,
+      username: base?.username ?? 'unknown',
       name: _nameController.text.trim(),
       dateOfBirth: base?.dateOfBirth ?? '2000-01-01',
       gender: base?.gender,

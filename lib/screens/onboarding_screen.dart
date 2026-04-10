@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/profile.dart';
 import '../database/database_helper.dart';
+import '../frontend/account_store.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -56,9 +57,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     setState(() => _saving = true);
 
+    final username = await FrontendAccountStore.instance.getCurrentUsername() ?? 'unknown';
     final existing = await DatabaseHelper.instance.getProfile();
     final profile = Profile(
       id: existing?.id,
+      username: existing?.username ?? username,
       name: _nameController.text.trim(),
       dateOfBirth: _birthController.text.trim(),
       doctorName: existing?.doctorName,

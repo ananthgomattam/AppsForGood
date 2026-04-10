@@ -2,11 +2,13 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../data/daily_log.dart';
 import '../database/database_helper.dart';
 import '../frontend/account_store.dart';
-import '../services/trigger_service.dart';
-import '../widgets/data_threshold_banner.dart';
+import '../services/prediction_service.dart';
 import '../widgets/risk_gauge.dart';
+
+enum _InsightsTier { locked, safetyOnly, basicTriggers, full }
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,13 +17,32 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver, RouteAware {
   late Future<_DashboardInsights> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = _getInsights();
+    _refreshInsights();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _refreshInsights() {
+    setState(() {
+      _future = _getInsights();
+    });
+  }
+
+  Future<void> _openAndRefresh(String route) async {
+    await Navigator.pushNamed(context, route);
+    if (!mounted) return;
+    _refreshInsights();
   }
 
   Future<void> _signOut(BuildContext context) async {
@@ -30,51 +51,130 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
   }
 
-  Future<_DashboardInsights> _getInsights() async {
-    final daily = await DatabaseHelper.instance.getAllDailyLogs();
-    final seizure = await DatabaseHelper.instance.getAllSeizureLogs();
-    final normal = max(0, daily.length - seizure.length);
-
-    if (daily.length < 10 || seizure.length < 10) {
-      return _DashboardInsights.insufficientData(
-        dailyCount: daily.length,
-        seizureCount: seizure.length,
-        normalCount: normal,
-      );
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Refresh insights when app comes back to foreground
+    if (state == AppLifecycleState.resumed) {
+      _refreshInsights();
     }
-
-    final analysis = await TriggerService().analyzeTriggers();
-    final active = <TriggerResult>[];
-    for (final item in analysis) {
-      if (item.isTrigger) {
-        active.add(item);
-      }
-    }
-    active.sort((a, b) => b.weight.compareTo(a.weight));
-
-    final risk = _riskFrom(active);
-    return _DashboardInsights.withData(
-      dailyCount: daily.length,
-      seizureCount: seizure.length,
-      normalCount: normal,
-      riskScore: risk,
-      topTrigger: active.isEmpty ? null : active.first,
-      activeTriggerCount: active.length,
-    );
   }
 
-  double _riskFrom(List<TriggerResult> active) {
-    if (active.isEmpty) {
-      return 0.2;
-    }
+  @override
+  void didPopNext() {
+    // Refresh insights when navigating back to this screen
+    _refreshInsights();
+    super.didPopNext();
+  }
 
-    var total = 0.0;
-    for (final t in active) {
-      total += t.weight;
-    }
+  Future<_DashboardInsights> _getInsights() async {
+    try {
+      final daily = await DatabaseHelper.instance.getAllDailyLogs();
+      final seizure = await DatabaseHelper.instance.getAllSeizureLogs();
+      final normal = max(0, daily.length - seizure.length);
+      final totalEntries = daily.length;
 
-    final avg = total / active.length;
-    return min(0.95, 0.25 + (avg * 0.35) + (active.length * 0.08));
+      if (totalEntries <= 6) {
+        return _DashboardInsights.insufficientData(
+          dailyCount: daily.length,
+          seizureCount: seizure.length,
+          normalCount: normal,
+          totalEntries: totalEntries,
+        );
+      }
+
+      // Get today's date
+      final today = DateTime.now();
+      final todayDateStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      // Find or create today's daily log
+      DailyLog? todayLog = daily.cast<DailyLog?>().firstWhere(
+        (log) => log?.date == todayDateStr,
+        orElse: () => null,
+      );
+
+      // If no entry for today yet, create a default one
+      if (todayLog == null) {
+        final username = await FrontendAccountStore.instance.getCurrentUsername() ?? 'unknown';
+        todayLog = DailyLog(
+          username: username,
+          date: todayDateStr,
+          medicationAdherence: true,
+          sleepHours: 7.0,
+          sleepQuality: 3,
+          sleepInterruptions: 0,
+          stressLevel: 5,
+          dietQuality: 3,
+          drugUse: false,
+          hormonalChanges: false,
+          notes: 'No entry logged yet',
+          createdAt: DateTime.now().toIso8601String(),
+        );
+      }
+
+      // Get prediction for today
+      try {
+        final predictionService = PredictionService();
+        final prediction = await predictionService.predict(todayLog);
+
+        // Convert risk score (0-100) to 0-1 scale for consistency with existing display
+        final riskScoreNormalized = prediction.riskScore / 100.0;
+        
+        // Determine tier based on entry count:
+        // 0-6: locked (handled above)
+        // 7-13: safetyOnly (show safety score with disclaimer)
+        // 14-29: basicTriggers (safety score + basic triggers with disclaimer)
+        // 30+: full (complete experience, no disclaimer)
+        final tier = totalEntries >= 30
+            ? _InsightsTier.full
+            : totalEntries >= 14
+            ? _InsightsTier.basicTriggers
+            : _InsightsTier.safetyOnly;
+
+        return _DashboardInsights.withData(
+          dailyCount: daily.length,
+          seizureCount: seizure.length,
+          normalCount: normal,
+          totalEntries: totalEntries,
+          tier: tier,
+          riskScore: riskScoreNormalized,
+          prediction: prediction,
+        );
+      } catch (e) {
+        final tier = totalEntries >= 30
+            ? _InsightsTier.full
+            : totalEntries >= 14
+            ? _InsightsTier.basicTriggers
+            : _InsightsTier.safetyOnly;
+        return _DashboardInsights.withData(
+          dailyCount: daily.length,
+          seizureCount: seizure.length,
+          normalCount: normal,
+          totalEntries: totalEntries,
+          tier: tier,
+          riskScore: 0.5,
+          prediction: null,
+        );
+      }
+    } on StateError catch (e) {
+      // Handle database initialization errors on web
+      if (e.message.contains('databaseFactory')) {
+        return _DashboardInsights.insufficientData(
+          dailyCount: 0,
+          seizureCount: 0,
+          normalCount: 0,
+          totalEntries: 0,
+        );
+      }
+      rethrow;
+    } catch (e) {
+      // Generic error handler
+      return _DashboardInsights.insufficientData(
+        dailyCount: 0,
+        seizureCount: 0,
+        normalCount: 0,
+        totalEntries: 0,
+      );
+    }
   }
 
   String _riskLabel(double score) {
@@ -174,16 +274,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         Text('Today\'s Safety Snapshot', style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 10),
-                        DataThresholdBanner(
-                          seizureDaysLogged: insights.seizureCount,
-                          normalDaysLogged: insights.normalCount,
-                          forTTest: true,
-                        ),
                         const Text(
-                          'We need more data before showing risk or trigger insights on this page.',
+                          'Keep logging to unlock your insights.',
                         ),
                         Text(
-                          'Current data: ${insights.dailyCount} daily logs, ${insights.seizureCount} seizure logs.',
+                          'Current entries logged: ${insights.totalEntries}/7',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -240,21 +335,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             'Prediction is calculated from trigger analysis and seizure history.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
+                          if (insights.tier != _InsightsTier.full) ...[
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Based on limited data.',
+                              style: TextStyle(fontStyle: FontStyle.italic),
+                            ),
+                          ],
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  _MetricCard(
-                    icon: Icons.warning_amber_rounded,
-                    title: 'Trigger Highlights',
-                    value: insights.topTrigger == null
-                        ? 'No strong triggers detected yet'
-                        : insights.topTrigger!.factorName,
-                    subtitle: insights.topTrigger == null
-                        ? 'Keep logging to detect patterns over time.'
-                        : '${insights.activeTriggerCount} active trigger(s) detected from backend data.',
-                  ),
+                  if (insights.tier != _InsightsTier.safetyOnly) ...[
+                    const SizedBox(height: 12),
+                    _MetricCard(
+                      icon: Icons.warning_amber_rounded,
+                      title: insights.tier == _InsightsTier.full
+                          ? 'Prediction Insight'
+                          : 'Basic Trigger List',
+                      value: insights.prediction?.explanation ?? 'Unable to predict',
+                      subtitle: insights.prediction?.activeTriggers.isEmpty ?? true
+                          ? 'No active triggers detected yet.'
+                          : 'Active triggers: ${insights.prediction!.activeTriggers.join(", ")}',
+                    ),
+                  ],
                 ],
               );
             },
@@ -311,11 +415,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: const [
-              _ActionButton(label: 'Daily Entry', route: '/log-seizure'),
-              _ActionButton(label: 'Track Triggers', route: '/triggers'),
-              _ActionButton(label: 'Medication', route: '/medication'),
-              _ActionButton(label: 'Profile', route: '/profile'),
+            children: [
+              _ActionButton(
+                label: 'Daily Entry',
+                onPressed: () => _openAndRefresh('/log-seizure'),
+              ),
+              _ActionButton(
+                label: 'Track Triggers',
+                onPressed: () => _openAndRefresh('/triggers'),
+              ),
+              _ActionButton(
+                label: 'Medication',
+                onPressed: () => _openAndRefresh('/medication'),
+              ),
+              _ActionButton(
+                label: 'Profile',
+                onPressed: () => _openAndRefresh('/profile'),
+              ),
             ],
           ),
         ],
@@ -329,33 +445,37 @@ class _DashboardInsights {
   final int dailyCount;
   final int seizureCount;
   final int normalCount;
+  final int totalEntries;
+  final _InsightsTier tier;
   final double riskScore;
-  final TriggerResult? topTrigger;
-  final int activeTriggerCount;
+  final PredictionResult? prediction;
 
   const _DashboardInsights({
     required this.hasEnoughData,
     required this.dailyCount,
     required this.seizureCount,
     required this.normalCount,
+    required this.totalEntries,
+    required this.tier,
     required this.riskScore,
-    required this.topTrigger,
-    required this.activeTriggerCount,
+    required this.prediction,
   });
 
   factory _DashboardInsights.insufficientData({
     required int dailyCount,
     required int seizureCount,
     required int normalCount,
+    required int totalEntries,
   }) {
     return _DashboardInsights(
       hasEnoughData: false,
       dailyCount: dailyCount,
       seizureCount: seizureCount,
       normalCount: normalCount,
+      totalEntries: totalEntries,
+      tier: _InsightsTier.locked,
       riskScore: 0,
-      topTrigger: null,
-      activeTriggerCount: 0,
+      prediction: null,
     );
   }
 
@@ -363,18 +483,20 @@ class _DashboardInsights {
     required int dailyCount,
     required int seizureCount,
     required int normalCount,
+    required int totalEntries,
+    required _InsightsTier tier,
     required double riskScore,
-    required TriggerResult? topTrigger,
-    required int activeTriggerCount,
+    required PredictionResult? prediction,
   }) {
     return _DashboardInsights(
       hasEnoughData: true,
       dailyCount: dailyCount,
       seizureCount: seizureCount,
       normalCount: normalCount,
+      totalEntries: totalEntries,
+      tier: tier,
       riskScore: riskScore,
-      topTrigger: topTrigger,
-      activeTriggerCount: activeTriggerCount,
+      prediction: prediction,
     );
   }
 }
@@ -494,14 +616,14 @@ class _ResourceRow extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   final String label;
-  final String route;
+  final VoidCallback onPressed;
 
-  const _ActionButton({required this.label, required this.route});
+  const _ActionButton({required this.label, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     return ElevatedButton(
-      onPressed: () => Navigator.pushNamed(context, route),
+      onPressed: onPressed,
       child: Text(label),
     );
   }

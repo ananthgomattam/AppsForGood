@@ -1,5 +1,6 @@
 class Profile {
   final int? id;
+  final String username;
   final String name;
   final String dateOfBirth;
   final String? gender;
@@ -18,6 +19,7 @@ class Profile {
 
   Profile({
     this.id,
+    required this.username,
     required this.name,
     required this.dateOfBirth,
     this.gender,
@@ -40,6 +42,7 @@ class Profile {
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id': id,
+      'username': username,
       'name': name,
       'dateOfBirth': dateOfBirth,
       'gender': gender,
@@ -62,6 +65,7 @@ class Profile {
   factory Profile.fromMap(Map<String, dynamic> map) {
     return Profile(
       id: map['id'] as int?,
+      username: map['username'] as String,
       name: map['name'] as String,
       dateOfBirth: map['dateOfBirth'] as String,
       gender: map['gender'] as String?,
@@ -101,6 +105,7 @@ class Profile {
   }) {
     return Profile(
       id: id ?? this.id,
+      username: this.username,
       name: name ?? this.name,
       dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       gender: gender ?? this.gender,

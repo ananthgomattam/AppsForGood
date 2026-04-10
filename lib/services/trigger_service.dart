@@ -1,8 +1,10 @@
 import 'dart:math';
 
+
 import '../data/daily_log.dart';
 import '../data/seizure_log.dart';
 import '../database/database_helper.dart';
+
 
 class TriggerResult {
   final String factorName;
@@ -12,6 +14,7 @@ class TriggerResult {
   final double difference;
   final double weight;
   final bool usedTTest;
+
 
   TriggerResult({
     required this.factorName,
@@ -24,13 +27,16 @@ class TriggerResult {
   });
 }
 
+
 class TriggerService {
   Future<List<TriggerResult>> analyzeTriggers() async {
     final dailyLogs = await DatabaseHelper.instance.getAllDailyLogs();
     final seizureLogs = await DatabaseHelper.instance.getAllSeizureLogs();
 
+
     // Not enough data to analyze triggers yet
     if (dailyLogs.length < 14) return [];
+
 
     final seizureDays = seizureLogs.map((log) => log.dailyLog).toList();
     final seizureDates = seizureLogs.map((log) => log.date).toSet();
@@ -38,7 +44,9 @@ class TriggerService {
         .where((log) => !seizureDates.contains(log.date))
         .toList();
 
+
     final sortedLogs = [...dailyLogs]..sort((a, b) => a.date.compareTo(b.date));
+
 
     return [
       _analyzeFactor(
@@ -110,17 +118,20 @@ class TriggerService {
     ];
   }
 
+
   double _average(List<DailyLog> logs, double Function(DailyLog) getValue) {
     if (logs.isEmpty) return 0.0;
     final sum = logs.fold(0.0, (total, log) => total + getValue(log));
     return sum / logs.length;
   }
 
+
   double _variance(List<double> values, double avg) {
     if (values.length < 2) return 0.0;
     final sumSquares = values.fold(0.0, (sum, v) => sum + pow(v - avg, 2));
     return sumSquares / (values.length - 1);
   }
+
 
   TriggerResult _analyzeFactor({
     required String name,
@@ -132,6 +143,7 @@ class TriggerService {
     final seizureAvg = _average(seizureDays, getValue);
     final normalAvg = _average(normalDays, getValue);
     final difference = (seizureAvg - normalAvg).abs();
+
 
     // NOT ENOUGH DATA: use simple threshold comparison
     // usedTTest = false tells UI to show disclaimer
@@ -147,16 +159,20 @@ class TriggerService {
       );
     }
 
+
     // ENOUGH DATA: use Welch's t-test
     final seizureValues = seizureDays.map(getValue).toList();
     final normalValues = normalDays.map(getValue).toList();
 
+
     final seizureVariance = _variance(seizureValues, seizureAvg);
     final normalVariance = _variance(normalValues, normalAvg);
+
 
     final sp =
         (seizureVariance / seizureDays.length) +
         (normalVariance / normalDays.length);
+
 
     if (sp == 0) {
       return TriggerResult(
@@ -170,10 +186,12 @@ class TriggerService {
       );
     }
 
+
     final tStat = difference / sqrt(sp);
     final isTrigger = tStat > 2.0;
     final seizureSD = sqrt(seizureVariance);
     final weight = isTrigger ? (difference / (seizureSD + 0.001)) : 0.0;
+
 
     return TriggerResult(
       factorName: name,
@@ -186,6 +204,7 @@ class TriggerService {
     );
   }
 
+
   TriggerResult _analyzeWeatherFactor({
     required String name,
     required List<SeizureLog> seizureLogs,
@@ -195,15 +214,19 @@ class TriggerService {
   }) {
     final deviations = <double>[];
 
+
     for (final seizure in seizureLogs) {
       final i = sortedDailyLogs.indexWhere((log) => log.date == seizure.date);
       if (i == -1) continue;
 
+
       final seizureValue = getValue(sortedDailyLogs[i]);
       if (seizureValue == null) continue;
 
+
       final windowStart = (i - 7).clamp(0, sortedDailyLogs.length - 1);
       final windowEnd = (i + 7).clamp(0, sortedDailyLogs.length - 1);
+
 
       final windowValues = sortedDailyLogs
           .sublist(windowStart, windowEnd + 1)
@@ -212,12 +235,15 @@ class TriggerService {
           .whereType<double>()
           .toList();
 
+
       if (windowValues.isEmpty) continue;
+
 
       final windowAvg =
           windowValues.reduce((a, b) => a + b) / windowValues.length;
       deviations.add((seizureValue - windowAvg).abs());
     }
+
 
     if (deviations.isEmpty) {
       return TriggerResult(
@@ -231,9 +257,11 @@ class TriggerService {
       );
     }
 
+
     final avgDeviation = deviations.reduce((a, b) => a + b) / deviations.length;
     final isTrigger = avgDeviation >= threshold;
     final weight = isTrigger ? avgDeviation : 0.0;
+
 
     return TriggerResult(
       factorName: name,
@@ -246,3 +274,5 @@ class TriggerService {
     );
   }
 }
+
+

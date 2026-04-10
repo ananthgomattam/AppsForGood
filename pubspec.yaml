@@ -34,6 +34,7 @@ dependencies:
 
   # Local database
   sqflite: ^2.3.0             # SQLite for Flutter
+  sqflite_common_ffi: ^2.3.3  # SQLite backend for desktop (Windows/Linux/macOS)
   path: ^1.8.3                # helps find the database file on the device
 
   # For the weather service

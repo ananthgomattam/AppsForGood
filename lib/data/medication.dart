@@ -1,5 +1,6 @@
 class Medication {
   final int? id;
+  final String username;
   final String name;
   final String dosage;
   final int frequencyCount;
@@ -12,6 +13,7 @@ class Medication {
 
   Medication({
     this.id,
+    required this.username,
     required this.name,
     required this.dosage,
     required this.frequencyCount,
@@ -27,6 +29,7 @@ class Medication {
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id': id,
+      'username': username,
       'name': name,
       'dosage': dosage,
       'frequencyCount': frequencyCount,
@@ -43,6 +46,7 @@ class Medication {
   factory Medication.fromMap(Map<String, dynamic> map) {
     return Medication(
       id: map['id'] as int?,
+      username: map['username'] as String,
       name: map['name'] as String,
       dosage: map['dosage'] as String,
       frequencyCount: map['frequencyCount'] as int,
@@ -70,6 +74,7 @@ class Medication {
   }) {
     return Medication(
       id: id ?? this.id,
+      username: this.username,
       name: name ?? this.name,
       dosage: dosage ?? this.dosage,
       frequencyCount: frequencyCount ?? this.frequencyCount,
