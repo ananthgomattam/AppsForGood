@@ -2,12 +2,11 @@ import '../data/daily_log.dart';
 import '../database/database_helper.dart';
 import 'trigger_service.dart';
 
-// Holds the full prediction output for today
 class PredictionResult {
-  final double riskScore; // 0 (safe) to 100 (dangerous)
-  final String riskLevel; // "Low", "Moderate", "High"
-  final List<String> activeTriggers; // which triggers are active today
-  final String explanation; // "High stress and poor sleep detected"
+  final double riskScore;
+  final String riskLevel;
+  final List<String> activeTriggers;
+  final String explanation;
 
   PredictionResult({
     required this.riskScore,
@@ -21,49 +20,42 @@ class PredictionService {
   final TriggerService _triggerService = TriggerService();
 
   Future<PredictionResult> predict(DailyLog today) async {
-    // Get fresh trigger weights every time
     final triggers = await _triggerService.analyzeTriggers();
-
-    // Get all logs for rolling average and seizure history calculations
     final allDailyLogs = await DatabaseHelper.instance.getAllDailyLogs();
     final allSeizureLogs = await DatabaseHelper.instance.getAllSeizureLogs();
 
-    // Sort by date for rolling calculations
+    // Not enough data — return early
+    if (allDailyLogs.length < 7) {
+      return PredictionResult(
+        riskScore: 0,
+        riskLevel: 'Insufficient Data',
+        activeTriggers: [],
+        explanation: 'Log at least 7 days to unlock your first prediction',
+      );
+    }
+
     final sortedLogs = [...allDailyLogs]
       ..sort((a, b) => a.date.compareTo(b.date));
 
-    // Track total risk and which triggers are active today
     double rawRisk = 0.0;
     double totalWeight = 0.0;
     final activeTriggers = <String>[];
 
     for (final trigger in triggers) {
-      // Skip anything that isn't a confirmed trigger
       if (!trigger.isTrigger || trigger.weight == 0.0) continue;
-
-      // Get today's value for this factor
       final todayValue = _getFactorValue(today, trigger.factorName);
       if (todayValue == null) continue;
-
-      // How far is today from this user's normal average?
       final deviation = (todayValue - trigger.normalAvg).abs();
-
-      // Normalize deviation
       final normalizedRisk = (deviation * trigger.weight).clamp(0.0, 1.0);
-
       if (normalizedRisk > 0.1) activeTriggers.add(trigger.factorName);
-
       rawRisk += normalizedRisk * trigger.weight;
       totalWeight += trigger.weight;
     }
 
-    // Normalize total risk to 0-1 scale
     final triggerRisk = totalWeight > 0
         ? (rawRisk / totalWeight).clamp(0.0, 1.0)
         : 0.0;
 
-    // Rolling 7-day window — catches gradual buildup that today's log alone misses
-    // e.g. 6 days of poor sleep is far more dangerous than 1 bad night
     final recentLogs = sortedLogs
         .where((log) => log.date.compareTo(today.date) < 0)
         .toList()
@@ -71,7 +63,6 @@ class PredictionService {
         .take(7)
         .toList();
 
-    // Declared outside if block so they're accessible in explanation section
     double avgSleep = 7.0;
     double avgStress = 5.0;
     double rollingRisk = 0.0;
@@ -89,42 +80,31 @@ class PredictionService {
           .where((l) => !l.medicationAdherence)
           .length;
 
-      // Low average sleep over 7 days → adds risk
       if (avgSleep < 6.0) rollingRisk += 0.15;
       if (avgSleep < 5.0) rollingRisk += 0.10;
-
-      // High average stress over 7 days → adds risk
       if (avgStress > 7.0) rollingRisk += 0.15;
       if (avgStress > 8.5) rollingRisk += 0.10;
-
-      // Missed medication multiple days → adds significant risk
       if (missedMedCount >= 2) rollingRisk += 0.15;
       if (missedMedCount >= 4) rollingRisk += 0.15;
     }
 
     rollingRisk = rollingRisk.clamp(0.0, 1.0);
 
-    // Seizure history risk — recent seizures raise baseline risk
-    // Brain is more vulnerable shortly after a seizure
     final recentSeizures = allSeizureLogs
         .where((log) => log.date.compareTo(today.date) < 0)
         .toList();
 
     double seizureHistoryRisk = 0.0;
-
-    // Count seizures in last 30 days
     final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
     final recentSeizureCount = recentSeizures.where((log) {
       final date = DateTime.parse(log.date);
       return date.isAfter(thirtyDaysAgo);
     }).length;
 
-    // More seizures recently = higher risk
     if (recentSeizureCount >= 1) seizureHistoryRisk += 0.10;
     if (recentSeizureCount >= 3) seizureHistoryRisk += 0.10;
     if (recentSeizureCount >= 5) seizureHistoryRisk += 0.10;
 
-    // Extra risk if seizure was in the last 48 hours
     if (recentSeizures.isNotEmpty) {
       final lastSeizureDate = DateTime.parse(recentSeizures.last.date);
       final hoursSinceLastSeizure = DateTime.now()
@@ -135,8 +115,6 @@ class PredictionService {
 
     seizureHistoryRisk = seizureHistoryRisk.clamp(0.0, 1.0);
 
-    // Medication streak — consecutive days of adherence
-    // Short streak means user recently stopped taking meds
     int medicationStreak = 0;
     for (final log in sortedLogs.reversed) {
       if (log.medicationAdherence) {
@@ -146,11 +124,6 @@ class PredictionService {
       }
     }
 
-    // Combine all risk factors with weighted average
-    // Trigger deviation: 35% — what's abnormal TODAY
-    // Rolling patterns:  30% — 7-day trends catch gradual buildup
-    // Seizure history:   25% — recent activity primes the brain
-    // Medication penalty: 10% — non-adherence is critical
     final medicationPenalty = medicationStreak < 3 ? 0.2 : 0.0;
     double combinedRisk =
         (triggerRisk * 0.35) +
@@ -158,8 +131,6 @@ class PredictionService {
         (seizureHistoryRisk * 0.25) +
         (medicationPenalty * 0.10);
 
-    // Apply ANOVA interaction multiplier
-    // Dangerous combinations amplify risk beyond individual factors
     double interactionMultiplier = _calculateInteractionEffects(
       today: today,
       recentLogs: recentLogs,
@@ -169,10 +140,8 @@ class PredictionService {
 
     combinedRisk = (combinedRisk * interactionMultiplier).clamp(0.0, 1.0);
 
-    // Convert to 0-100 risk score — higher = more dangerous
     final riskScore = (combinedRisk * 100).roundToDouble();
 
-    // Classify into risk level buckets
     String riskLevel;
     if (riskScore < 30) {
       riskLevel = 'Low';
@@ -182,13 +151,14 @@ class PredictionService {
       riskLevel = 'High';
     }
 
-    // Generate human readable explanation
     final explanationParts = <String>[];
-
-    if (avgSleep < 6.0) explanationParts.add('poor sleep (${avgSleep.toStringAsFixed(1)} hrs)');
-    if (avgStress > 7.0) explanationParts.add('high stress (${avgStress.toStringAsFixed(1)}/10)');
+    if (avgSleep < 6.0)
+      explanationParts.add('poor sleep (${avgSleep.toStringAsFixed(1)} hrs)');
+    if (avgStress > 7.0)
+      explanationParts.add('high stress (${avgStress.toStringAsFixed(1)}/10)');
     if (medicationStreak < 2) explanationParts.add('missed medication');
-    if (recentSeizureCount >= 3) explanationParts.add('recent seizure activity');
+    if (recentSeizureCount >= 3)
+      explanationParts.add('recent seizure activity');
     if (today.hormonalChanges == true) explanationParts.add('hormonal changes');
 
     String explanation;
@@ -215,7 +185,6 @@ class PredictionService {
     );
   }
 
-  // Calculates interaction multiplier — how much dangerous combinations amplify risk
   double _calculateInteractionEffects({
     required DailyLog today,
     required List<DailyLog> recentLogs,
@@ -235,23 +204,17 @@ class PredictionService {
               recentLogs.length
         : 5.0;
 
-    // Low sleep + high stress: clinically the most dangerous combination
     if (avgSleep < 6.0 && avgStress > 7.0) {
       multiplier = 1.4;
-    }
-    // Missed medication + any active trigger: non-adherence amplifies everything
-    else if (medicationStreak < 2 && activeTriggers.isNotEmpty) {
+    } else if (medicationStreak < 2 && activeTriggers.isNotEmpty) {
       multiplier = 1.35;
-    }
-    // Hormonal changes + high stress: strong interaction for hormonal trigger users
-    else if (today.hormonalChanges == true && today.stressLevel > 7) {
+    } else if (today.hormonalChanges == true && today.stressLevel > 7) {
       multiplier = 1.25;
     }
 
     return multiplier;
   }
 
-  // Maps a factor name to its value in today's log
   double? _getFactorValue(DailyLog log, String factorName) {
     switch (factorName) {
       case 'Sleep Hours':
