@@ -20,7 +20,7 @@ It is designed to help detect potential seizure risk using user input and extern
 
 ### Flutter Packages Used
 - flutter
-- sqflite (database)
+- sqlite (database)
 - path (file locations)
 - geolocator (location)
 - http (API requests)
