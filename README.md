@@ -14,10 +14,9 @@ It is designed to help detect potential seizure risk using user input and extern
 ## Requirements (Dependencies)
 
 ### Software Needed
+- VS Code
 - Flutter SDK
 - Dart SDK (3.11 or higher)
-- VS Code or Android Studio
-- Android Emulator or physical device
 
 ### Flutter Packages Used
 - flutter
