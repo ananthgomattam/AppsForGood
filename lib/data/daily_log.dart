@@ -1,5 +1,6 @@
 class DailyLog {
   final int? id;
+  final String username;
   final String date;
   final bool medicationAdherence;
   final double sleepHours;
@@ -19,6 +20,7 @@ class DailyLog {
 
   DailyLog({
     this.id,
+    required this.username,
     required this.date, 
     required this.medicationAdherence,
     required this.sleepHours,
@@ -39,6 +41,7 @@ class DailyLog {
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id': id,
+      'username': username,
       'date': date,
       'medicationAdherence': medicationAdherence ? 1 : 0,
       'sleepHours': sleepHours,
@@ -60,6 +63,7 @@ class DailyLog {
   factory DailyLog.fromMap(Map<String, dynamic> map) {
     return DailyLog(
       id: map['id'] as int?,
+      username: map['username'] as String,
       date: map['date'] as String,
       medicationAdherence: map['medicationAdherence'] == 1,
       sleepHours: (map['sleepHours'] as num).toDouble(),
@@ -97,6 +101,7 @@ class DailyLog {
   }) {
     return DailyLog(
       id: id ?? this.id,
+      username: this.username,
       date: date ?? this.date,
       medicationAdherence: medicationAdherence ?? this.medicationAdherence,
       sleepHours: sleepHours ?? this.sleepHours,

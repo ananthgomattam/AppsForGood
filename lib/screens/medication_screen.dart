@@ -136,7 +136,9 @@ class _MedicationScreenState extends State<MedicationScreen> {
 
     setState(() => _saving = true);
 
+    final username = await FrontendAccountStore.instance.getCurrentUsername() ?? 'unknown';
     final plan = Medication(
+      username: username,
       name: _selectedMed!,
       dosage: _dosageController.text.trim(),
       frequencyCount: _freqCount,

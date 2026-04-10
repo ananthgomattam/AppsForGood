@@ -2,6 +2,7 @@ import 'daily_log.dart';
 
 class SeizureLog {
   final int? id;
+  final String username;
   final String date;
   final String timeOfDay;
   final int durationSeconds;
@@ -15,6 +16,7 @@ class SeizureLog {
 
   SeizureLog({
     this.id,
+    required this.username,
     required this.date,
     required this.timeOfDay,
     required this.durationSeconds,
@@ -31,6 +33,7 @@ class SeizureLog {
     final daily = dailyLog.toMap();
     return {
       if (id != null) 'id': id,
+      'username': username,
       'date': date,
       'timeOfDay': timeOfDay,
       'durationSeconds': durationSeconds,
@@ -75,6 +78,7 @@ class SeizureLog {
 
     return SeizureLog(
       id: map['id'] as int?,
+      username: map['username'] as String,
       date: map['date'] as String,
       timeOfDay: map['timeOfDay'] as String,
       durationSeconds: map['durationSeconds'] as int,
@@ -102,6 +106,7 @@ class SeizureLog {
   }) {
     return SeizureLog(
       id: id ?? this.id,
+      username: this.username,
       date: date ?? this.date,
       timeOfDay: timeOfDay ?? this.timeOfDay,
       durationSeconds: durationSeconds ?? this.durationSeconds,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/daily_log.dart';
 import '../data/seizure_log.dart';
 import '../database/database_helper.dart';
+import '../frontend/account_store.dart';
 import '../services/weather_service.dart';
 
 class LogSeizureScreen extends StatefulWidget {
@@ -101,8 +102,10 @@ class _LogSeizureScreenState extends State<LogSeizureScreen> {
 
     try {
       final weather = await WeatherService().getWeather();
+      final username = await FrontendAccountStore.instance.getCurrentUsername() ?? 'unknown';
 
       final dailyLog = DailyLog(
+        username: username,
         date: _dateCtrl.text,
         medicationAdherence: _medicationAdherence,
         sleepHours: double.parse(_sleepHoursCtrl.text),
@@ -132,6 +135,7 @@ class _LogSeizureScreenState extends State<LogSeizureScreen> {
 
       if (_isSeizureDay) {
         final seizureLog = SeizureLog(
+          username: username,
           date: _dateCtrl.text,
           timeOfDay: _timeCtrl.text,
           durationSeconds: int.parse(_durationCtrl.text),
