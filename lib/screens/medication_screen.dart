@@ -116,11 +116,20 @@ class _MedicationScreenState extends State<MedicationScreen> {
   }
 
   Future<void> _getPlans() async {
-    final plans = await DatabaseHelper.instance.getAllMedications();
-    if (!mounted) return;
-    setState(() {
-      _plans = plans;
-    });
+    try {
+      final plans = await DatabaseHelper.instance.getAllMedications();
+      if (!mounted) return;
+      setState(() {
+        _plans = plans;
+      });
+    } catch (e, st) {
+      debugPrint('Failed to load medication plans: $e');
+      debugPrint('$st');
+      if (!mounted) return;
+      setState(() {
+        _plans = [];
+      });
+    }
   }
 
   Future<void> _addPlan() async {
@@ -294,6 +303,15 @@ class _MedicationScreenState extends State<MedicationScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/medication-safety'),
+                icon: const Icon(Icons.info_outline),
+                label: const Text('Medication safety info'),
               ),
             ),
             const SizedBox(height: 10),

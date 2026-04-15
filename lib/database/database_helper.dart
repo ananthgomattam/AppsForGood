@@ -219,8 +219,7 @@ class DatabaseHelper {
     ''');
 
     batch.execute('''
-    CRusername TEXT NOT NULL,
-      EATE TABLE seizure_log (
+    CREATE TABLE seizure_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
       timeOfDay TEXT NOT NULL,

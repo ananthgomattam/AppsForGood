@@ -12,6 +12,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/triggers_screen.dart';
+import 'screens/med_info_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +42,7 @@ class MyApp extends StatelessWidget {
         '/log-seizure': (_) => const LogSeizureScreen(),
         '/triggers': (_) => const TriggersScreen(),
         '/medication': (_) => const MedicationScreen(),
+        '/medication-safety': (_) => const MedicationSafetyScreen(),
         '/profile': (_) => const ProfileScreen(),
       },
     );
