@@ -48,3 +48,7 @@ https://docs.flutter.dev/get-started/install
 
 2. Check installation:
 flutter doctor
+
+## References
+
+Claude Sonnet 4.6: Used for basic dart training and lessons on how to code this application
