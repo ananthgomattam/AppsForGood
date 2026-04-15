@@ -6,6 +6,7 @@ import '../data/daily_log.dart';
 import '../database/database_helper.dart';
 import '../frontend/account_store.dart';
 import '../services/prediction_service.dart';
+import '../services/weather_service.dart';
 import '../widgets/risk_gauge.dart';
 
 enum _InsightsTier { locked, safetyOnly, basicTriggers, full }
@@ -19,11 +20,13 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver, RouteAware {
   late Future<_DashboardInsights> _future;
+  late Future<Map<String, double?>> _weatherFuture;
 
   @override
   void initState() {
     super.initState();
     _refreshInsights();
+    _refreshWeather();
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -43,6 +46,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     await Navigator.pushNamed(context, route);
     if (!mounted) return;
     _refreshInsights();
+    _refreshWeather();
+  }
+
+  void _refreshWeather() {
+    setState(() {
+      _weatherFuture = WeatherService().getWeather();
+    });
   }
 
   Future<void> _signOut(BuildContext context) async {
@@ -56,6 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     // Refresh insights when app comes back to foreground
     if (state == AppLifecycleState.resumed) {
       _refreshInsights();
+      _refreshWeather();
     }
   }
 
@@ -63,6 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   void didPopNext() {
     // Refresh insights when navigating back to this screen
     _refreshInsights();
+    _refreshWeather();
     super.didPopNext();
   }
 
@@ -195,6 +207,35 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
+          FutureBuilder<Map<String, double?>>(
+            future: _weatherFuture,
+            builder: (context, snapshot) {
+              final weather = snapshot.data;
+              final temp = weather?['temperature'];
+              final humidity = weather?['humidity'];
+              final pressure = weather?['pressure'];
+
+              final label = temp == null ? '-- C' : '${temp.round()} C';
+              final tooltip = temp == null
+                  ? 'Weather unavailable'
+                  : 'Temp: ${temp.toStringAsFixed(1)} C | Humidity: ${humidity?.toStringAsFixed(0) ?? '--'}% | Pressure: ${pressure?.toStringAsFixed(0) ?? '--'} hPa';
+
+              return Tooltip(
+                message: tooltip,
+                child: TextButton.icon(
+                  onPressed: _refreshWeather,
+                  icon: Icon(
+                    temp == null ? Icons.cloud_off_outlined : Icons.wb_sunny_outlined,
+                    size: 18,
+                  ),
+                  label: Text(label),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Sign out',
             onPressed: () => _signOut(context),
@@ -423,6 +464,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               _ActionButton(
                 label: 'Track Triggers',
                 onPressed: () => _openAndRefresh('/triggers'),
+              ),
+              _ActionButton(
+                label: 'Entries',
+                onPressed: () => _openAndRefresh('/entries'),
               ),
               _ActionButton(
                 label: 'Medication',

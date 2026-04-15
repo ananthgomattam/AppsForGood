@@ -60,6 +60,7 @@ class SeizureLog {
   factory SeizureLog.fromMap(Map<String, dynamic> map) {
     final daily = DailyLog.fromMap({
       'id': null,
+      'username': map['username'],
       'date': map['date'],
       'medicationAdherence': map['medicationAdherence'],
       'sleepHours': map['sleepHours'],
@@ -106,7 +107,7 @@ class SeizureLog {
   }) {
     return SeizureLog(
       id: id ?? this.id,
-      username: this.username,
+      username: username,
       date: date ?? this.date,
       timeOfDay: timeOfDay ?? this.timeOfDay,
       durationSeconds: durationSeconds ?? this.durationSeconds,

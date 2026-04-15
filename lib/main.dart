@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'config/theme.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/entries_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/log_seizure_screen.dart';
 import 'screens/medication_screen.dart';
@@ -38,6 +39,7 @@ class MyApp extends StatelessWidget {
         '/login': (_) => const LoginScreen(),
         '/onboarding': (_) => const OnboardingScreen(),
         '/dashboard': (_) => const DashboardScreen(),
+        '/entries': (_) => const EntriesScreen(),
         '/log-seizure': (_) => const LogSeizureScreen(),
         '/triggers': (_) => const TriggersScreen(),
         '/medication': (_) => const MedicationScreen(),

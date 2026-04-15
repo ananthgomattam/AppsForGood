@@ -76,6 +76,7 @@ class DatabaseHelper {
     await db.execute('''
     CREATE TABLE IF NOT EXISTS profile (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
       name TEXT NOT NULL,
       dateOfBirth TEXT NOT NULL,
       gender TEXT,
@@ -97,6 +98,7 @@ class DatabaseHelper {
     await db.execute('''
     CREATE TABLE IF NOT EXISTS medication (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
       name TEXT NOT NULL,
       dosage TEXT NOT NULL,
       frequencyCount INTEGER NOT NULL,
@@ -112,6 +114,7 @@ class DatabaseHelper {
     await db.execute('''
     CREATE TABLE IF NOT EXISTS daily_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
       date TEXT NOT NULL,
       medicationAdherence INTEGER NOT NULL,
       sleepHours REAL NOT NULL,
@@ -132,6 +135,7 @@ class DatabaseHelper {
     await db.execute('''
     CREATE TABLE IF NOT EXISTS seizure_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
       date TEXT NOT NULL,
       timeOfDay TEXT NOT NULL,
       durationSeconds INTEGER NOT NULL,
@@ -219,9 +223,9 @@ class DatabaseHelper {
     ''');
 
     batch.execute('''
-    CRusername TEXT NOT NULL,
-      EATE TABLE seizure_log (
+    CREATE TABLE seizure_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
       date TEXT NOT NULL,
       timeOfDay TEXT NOT NULL,
       durationSeconds INTEGER NOT NULL,
@@ -441,6 +445,7 @@ class DatabaseHelper {
   // Force-loads a fixed dataset so UI and model behavior are consistent for demos/tests.
   Future<void> loadFixedTestData() async {
     final db = await instance.database;
+    final username = await _getCurrentUsername() ?? 'unknown';
     await _ensureTables(db);
 
     await db.transaction((txn) async {
@@ -452,6 +457,7 @@ class DatabaseHelper {
         final createdAt = '${entry.date}T08:00:00.000';
 
         final dailyMap = {
+          'username': username,
           'date': entry.date,
           'medicationAdherence': entry.medicationAdherence ? 1 : 0,
           'sleepHours': entry.sleepHours,
@@ -475,6 +481,7 @@ class DatabaseHelper {
           final hour = (9 + i).toString().padLeft(2, '0');
 
           await txn.insert('seizure_log', {
+            'username': username,
             'date': entry.date,
             'timeOfDay': '$hour:00',
             'durationSeconds': 60 + (i * 30),

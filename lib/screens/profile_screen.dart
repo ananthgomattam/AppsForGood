@@ -48,9 +48,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _switchToUser(String username) async {
     await FrontendAccountStore.instance.setCurrentUser(username);
     if (!mounted) return;
-    setState(() {
-      _user = username;
-    });
+    await _loadUser();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Switched to $username')),
     );
@@ -75,7 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final base = _profile;
     final updated = Profile(
       id: base?.id,
-      username: base?.username ?? 'unknown',
+      username: base?.username ?? _user,
       name: _nameController.text.trim(),
       dateOfBirth: base?.dateOfBirth ?? '2000-01-01',
       gender: base?.gender,
