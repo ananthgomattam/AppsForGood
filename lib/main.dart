@@ -14,6 +14,7 @@ import 'screens/profile_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/triggers_screen.dart';
 import 'screens/med_info_screen.dart';
+import 'services/medication_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +23,9 @@ Future<void> main() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
+
+  await MedicationNotificationService.instance.initialize();
+  await MedicationNotificationService.instance.syncMedicationReminders();
 
   runApp(const MyApp());
 }

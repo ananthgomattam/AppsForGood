@@ -227,8 +227,10 @@ class ModelLab {
       if (!trigger.isTrigger || trigger.weight == 0.0) continue;
       final todayValue = _getFactorValue(today, trigger.factorName);
       if (todayValue == null) continue;
-      final deviation = (todayValue - trigger.normalAvg).abs();
-      final normalizedRisk = (deviation * trigger.weight).clamp(0.0, 1.0);
+      final normalizedRisk = _calculateTriggerContribution(
+        todayValue: todayValue,
+        trigger: trigger,
+      );
       if (normalizedRisk > 0.1) activeTriggers.add(trigger.factorName);
       rawRisk += normalizedRisk * trigger.weight;
       totalWeight += trigger.weight;
@@ -337,12 +339,7 @@ class ModelLab {
 
     String explanation;
     if (explanationParts.isEmpty) {
-      if (activeTriggers.isNotEmpty) {
-        explanation =
-            'Baseline rule checks are normal; strongest deviations: ${activeTriggers.take(3).join(', ')}';
-      } else {
-        explanation = 'All factors within normal range';
-      }
+      explanation = 'All factors within normal range';
     } else if (explanationParts.length == 1) {
       explanation = 'Detected: ${explanationParts[0]}';
     } else if (explanationParts.length == 2) {
@@ -707,6 +704,32 @@ class ModelLab {
     }
 
     return multiplier;
+  }
+
+  static double _calculateTriggerContribution({
+    required double todayValue,
+    required TriggerResult trigger,
+  }) {
+    final trend = trigger.seizureAvg - trigger.normalAvg;
+
+    // Weather factors currently use a deviation-only trigger definition,
+    // so keep absolute distance behavior for them.
+    final isDeviationOnlyFactor =
+        trigger.factorName == 'Temperature' ||
+        trigger.factorName == 'Pressure' ||
+        trigger.factorName == 'Humidity';
+
+    if (isDeviationOnlyFactor) {
+      final deviation = (todayValue - trigger.normalAvg).abs();
+      return (deviation * trigger.weight).clamp(0.0, 1.0);
+    }
+
+    if (trend == 0.0) return 0.0;
+
+    final directionalDelta = (todayValue - trigger.normalAvg) * trend.sign;
+    if (directionalDelta <= 0.0) return 0.0;
+
+    return (directionalDelta * trigger.weight).clamp(0.0, 1.0);
   }
 
   static double? _getFactorValue(LabDailyLog log, String factorName) {

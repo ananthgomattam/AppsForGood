@@ -20,7 +20,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver, RouteAware {
   late Future<_DashboardInsights> _future;
-  late Future<Map<String, double?>> _weatherFuture;
+  late Future<WeatherSnapshot> _weatherFuture;
 
   @override
   void initState() {
@@ -98,30 +98,28 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       final today = DateTime.now();
       final todayDateStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
-      // Find or create today's daily log
+      // Find today's log and fall back to latest real log if today's entry does not exist.
       DailyLog? todayLog = daily.cast<DailyLog?>().firstWhere(
         (log) => log?.date == todayDateStr,
         orElse: () => null,
       );
 
-      // If no entry for today yet, create a default one
+      bool usedLatestLog = false;
       if (todayLog == null) {
-        final username = await FrontendAccountStore.instance.getCurrentUsername() ?? 'unknown';
-        todayLog = DailyLog(
-          username: username,
-          date: todayDateStr,
-          medicationAdherence: true,
-          sleepHours: 7.0,
-          sleepQuality: 3,
-          sleepInterruptions: 0,
-          stressLevel: 5,
-          dietQuality: 3,
-          drugUse: false,
-          hormonalChanges: false,
-          notes: 'No entry logged yet',
-          createdAt: DateTime.now().toIso8601String(),
-        );
+        final sorted = [...daily]..sort((a, b) => b.date.compareTo(a.date));
+        if (sorted.isEmpty) {
+          return _DashboardInsights.insufficientData(
+            dailyCount: daily.length,
+            seizureCount: seizure.length,
+            normalCount: normal,
+            totalEntries: totalEntries,
+          );
+        }
+        todayLog = sorted.first;
+        usedLatestLog = true;
       }
+
+      final basisDate = usedLatestLog ? todayLog.date : todayDateStr;
 
       // Get prediction for today
       try {
@@ -150,6 +148,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           tier: tier,
           riskScore: riskScoreNormalized,
           prediction: prediction,
+          predictionBasedOnDate: basisDate,
+          predictionComputed: true,
         );
       } catch (e) {
         final tier = totalEntries >= 30
@@ -163,8 +163,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           normalCount: normal,
           totalEntries: totalEntries,
           tier: tier,
-          riskScore: 0.5,
+          riskScore: 0,
           prediction: null,
+          predictionBasedOnDate: basisDate,
+          predictionComputed: false,
         );
       }
     } on StateError catch (e) {
@@ -207,27 +209,42 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
-          FutureBuilder<Map<String, double?>>(
+          FutureBuilder<WeatherSnapshot>(
             future: _weatherFuture,
             builder: (context, snapshot) {
-              final weather = snapshot.data;
-              final temp = weather?['temperature'];
-              final humidity = weather?['humidity'];
-              final pressure = weather?['pressure'];
+              final weather = snapshot.data ?? WeatherSnapshot.unavailable();
+              final temp = weather.temperature;
+              final humidity = weather.humidity;
+              final pressure = weather.pressure;
 
               final label = temp == null ? '-- C' : '${temp.round()} C';
               final tooltip = temp == null
                   ? 'Weather unavailable'
-                  : 'Temp: ${temp.toStringAsFixed(1)} C | Humidity: ${humidity?.toStringAsFixed(0) ?? '--'}% | Pressure: ${pressure?.toStringAsFixed(0) ?? '--'} hPa';
+                  : 'Condition: ${weather.conditionLabel} | Temp: ${temp.toStringAsFixed(1)} C | Humidity: ${humidity?.toStringAsFixed(0) ?? '--'}% | Pressure: ${pressure?.toStringAsFixed(0) ?? '--'} hPa';
+
+              IconData weatherIcon = Icons.cloud_off_outlined;
+              final code = weather.weatherCode;
+              if (code != null) {
+                if (code == 0) {
+                  weatherIcon = Icons.wb_sunny_outlined;
+                } else if (code == 1 || code == 2 || code == 3) {
+                  weatherIcon = Icons.cloud_outlined;
+                } else if (code == 45 || code == 48) {
+                  weatherIcon = Icons.foggy;
+                } else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+                  weatherIcon = Icons.grain_outlined;
+                } else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) {
+                  weatherIcon = Icons.ac_unit_outlined;
+                } else if (code >= 95) {
+                  weatherIcon = Icons.thunderstorm_outlined;
+                }
+              }
 
               return Tooltip(
                 message: tooltip,
                 child: TextButton.icon(
                   onPressed: _refreshWeather,
-                  icon: Icon(
-                    temp == null ? Icons.cloud_off_outlined : Icons.wb_sunny_outlined,
-                    size: 18,
-                  ),
+                  icon: Icon(weatherIcon, size: 18),
                   label: Text(label),
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
@@ -328,6 +345,29 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 );
               }
 
+              if (!insights.predictionComputed) {
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Today\'s Safety Snapshot', style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Safety score is temporarily unavailable. We could not complete backend trigger analysis for your latest entry.',
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Data source: ${insights.dailyCount} daily entries and ${insights.seizureCount} seizure entries (latest prediction date: ${insights.predictionBasedOnDate ?? '--'}).',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               final safetyScore = 1 - insights.riskScore;
               final scoreColor = _riskColor(insights.riskScore);
               return Column(
@@ -373,7 +413,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Prediction is calculated from trigger analysis and seizure history.',
+                            'Prediction is calculated from backend trigger analysis and seizure history.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Calculation date: ${insights.predictionBasedOnDate ?? '--'}',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           if (insights.tier != _InsightsTier.full) ...[
@@ -494,6 +539,8 @@ class _DashboardInsights {
   final _InsightsTier tier;
   final double riskScore;
   final PredictionResult? prediction;
+  final String? predictionBasedOnDate;
+  final bool predictionComputed;
 
   const _DashboardInsights({
     required this.hasEnoughData,
@@ -504,6 +551,8 @@ class _DashboardInsights {
     required this.tier,
     required this.riskScore,
     required this.prediction,
+    required this.predictionBasedOnDate,
+    required this.predictionComputed,
   });
 
   factory _DashboardInsights.insufficientData({
@@ -521,6 +570,8 @@ class _DashboardInsights {
       tier: _InsightsTier.locked,
       riskScore: 0,
       prediction: null,
+      predictionBasedOnDate: null,
+      predictionComputed: false,
     );
   }
 
@@ -532,6 +583,8 @@ class _DashboardInsights {
     required _InsightsTier tier,
     required double riskScore,
     required PredictionResult? prediction,
+    required String? predictionBasedOnDate,
+    required bool predictionComputed,
   }) {
     return _DashboardInsights(
       hasEnoughData: true,
@@ -542,6 +595,8 @@ class _DashboardInsights {
       tier: tier,
       riskScore: riskScore,
       prediction: prediction,
+      predictionBasedOnDate: predictionBasedOnDate,
+      predictionComputed: predictionComputed,
     );
   }
 }
