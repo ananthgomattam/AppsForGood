@@ -49,30 +49,6 @@ https://docs.flutter.dev/get-started/install
 2. Check installation:
 flutter doctor
 
-## Offline Model Lab (No UI, No App DB Impact)
+## References
 
-Use the standalone model test runner to validate trigger detection and prediction scoring outside the app UI.
-
-Run built-in consistency checks:
-
-dart run tool/model_lab.dart --self-check
-
-Run prediction on built-in fixed dataset:
-
-dart run tool/model_lab.dart --dataset fixed --date 2023-01-22
-
-Run prediction on custom CSV sample:
-
-dart run tool/model_lab.dart --csv tool/sample_model_input.csv --date 2023-02-03
-
-Prove that input trends affect output (example: sleep trend):
-
-dart run tool/model_lab.dart --csv tool/sample_model_input.csv --date 2023-02-03 --sensitivity sleep
-
-CSV columns required:
-
-date,sleepHours,sleepQuality,sleepInterruptions,stressLevel,dietQuality,medicationAdherence,drugUse,hormonalChanges,seizureCount
-
-Optional columns:
-
-temperature,pressure,humidity
+Claude Sonnet 4.6: Used for basic dart training and lessons on how to code this application
