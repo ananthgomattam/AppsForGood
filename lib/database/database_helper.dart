@@ -66,9 +66,6 @@ class DatabaseHelper {
       try {
         await db.execute('ALTER TABLE daily_log ADD COLUMN username TEXT NOT NULL DEFAULT "unknown"');
       } catch (_) {}
-      try {
-        await db.execute('ALTER TABLE seizure_log ADD COLUMN username TEXT NOT NULL DEFAULT "unknown"');
-      } catch (_) {}
     }
   }
 
@@ -391,17 +388,14 @@ class DatabaseHelper {
   // Insert a new seizure log
   Future<int> insertSeizureLog(SeizureLog log) async {
     final db = await instance.database;
-    final username = await _getCurrentUsername();
     final map = log.toMap();
-    map['username'] = username;
     return await db.insert('seizure_log', map);
   }
 
   // Get all seizure logs
   Future<List<SeizureLog>> getAllSeizureLogs() async {
     final db = await instance.database;
-    final username = await _getCurrentUsername();
-    final results = await db.query('seizure_log', where: 'username = ?', whereArgs: [username]);
+    final results = await db.query('seizure_log');
     final logs = <SeizureLog>[];
     for (final row in results) {
       try {
@@ -416,11 +410,10 @@ class DatabaseHelper {
   // Get all seizure logs for a specific date
   Future<List<SeizureLog>> getSeizureLogsByDate(String date) async {
     final db = await instance.database;
-    final username = await _getCurrentUsername();
     final results = await db.query(
       'seizure_log',
-      where: 'username = ? AND date = ?',
-      whereArgs: [username, date],
+      where: 'date = ?',
+      whereArgs: [date],
     );
     return results.map((row) => SeizureLog.fromMap(row)).toList();
   }

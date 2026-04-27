@@ -33,7 +33,6 @@ class SeizureLog {
     final daily = dailyLog.toMap();
     return {
       if (id != null) 'id': id,
-      'username': username,
       'date': date,
       'timeOfDay': timeOfDay,
       'durationSeconds': durationSeconds,
@@ -79,7 +78,7 @@ class SeizureLog {
 
     return SeizureLog(
       id: map['id'] as int?,
-      username: map['username'] as String,
+      username: 'unknown',
       date: map['date'] as String,
       timeOfDay: map['timeOfDay'] as String,
       durationSeconds: map['durationSeconds'] as int,
