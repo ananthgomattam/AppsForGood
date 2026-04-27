@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/medication.dart';
 import '../database/database_helper.dart';
 import '../frontend/account_store.dart';
+import '../services/medication_notification_service.dart';
 
 class MedicationScreen extends StatefulWidget {
   const MedicationScreen({super.key});
@@ -159,6 +160,7 @@ class _MedicationScreenState extends State<MedicationScreen> {
     );
 
     await DatabaseHelper.instance.insertMedication(plan);
+    await MedicationNotificationService.instance.syncMedicationReminders();
     await _getPlans();
 
     if (!mounted) return;
@@ -440,6 +442,7 @@ class _MedicationScreenState extends State<MedicationScreen> {
                               onPressed: () async {
                                 if (plan.id == null) return;
                                 await DatabaseHelper.instance.deleteMedication(plan.id!);
+                                await MedicationNotificationService.instance.syncMedicationReminders();
                                 await _getPlans();
                               },
                             ),

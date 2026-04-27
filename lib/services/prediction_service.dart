@@ -45,8 +45,10 @@ class PredictionService {
       if (!trigger.isTrigger || trigger.weight == 0.0) continue;
       final todayValue = _getFactorValue(today, trigger.factorName);
       if (todayValue == null) continue;
-      final deviation = (todayValue - trigger.normalAvg).abs();
-      final normalizedRisk = (deviation * trigger.weight).clamp(0.0, 1.0);
+      final normalizedRisk = _calculateTriggerContribution(
+        todayValue: todayValue,
+        trigger: trigger,
+      );
       if (normalizedRisk > 0.1) activeTriggers.add(trigger.factorName);
       rawRisk += normalizedRisk * trigger.weight;
       totalWeight += trigger.weight;
@@ -152,13 +154,16 @@ class PredictionService {
     }
 
     final explanationParts = <String>[];
-    if (avgSleep < 6.0)
+    if (avgSleep < 6.0) {
       explanationParts.add('poor sleep (${avgSleep.toStringAsFixed(1)} hrs)');
-    if (avgStress > 7.0)
+    }
+    if (avgStress > 7.0) {
       explanationParts.add('high stress (${avgStress.toStringAsFixed(1)}/10)');
+    }
     if (medicationStreak < 2) explanationParts.add('missed medication');
-    if (recentSeizureCount >= 3)
+    if (recentSeizureCount >= 3) {
       explanationParts.add('recent seizure activity');
+    }
     if (today.hormonalChanges == true) explanationParts.add('hormonal changes');
 
     String explanation;
@@ -213,6 +218,32 @@ class PredictionService {
     }
 
     return multiplier;
+  }
+
+  double _calculateTriggerContribution({
+    required double todayValue,
+    required TriggerResult trigger,
+  }) {
+    final trend = trigger.seizureAvg - trigger.normalAvg;
+
+    // Weather factors currently use a deviation-only trigger definition,
+    // so keep absolute distance behavior for them.
+    final isDeviationOnlyFactor =
+        trigger.factorName == 'Temperature' ||
+        trigger.factorName == 'Pressure' ||
+        trigger.factorName == 'Humidity';
+
+    if (isDeviationOnlyFactor) {
+      final deviation = (todayValue - trigger.normalAvg).abs();
+      return (deviation * trigger.weight).clamp(0.0, 1.0);
+    }
+
+    if (trend == 0.0) return 0.0;
+
+    final directionalDelta = (todayValue - trigger.normalAvg) * trend.sign;
+    if (directionalDelta <= 0.0) return 0.0;
+
+    return (directionalDelta * trigger.weight).clamp(0.0, 1.0);
   }
 
   double? _getFactorValue(DailyLog log, String factorName) {

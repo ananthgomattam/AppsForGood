@@ -116,9 +116,9 @@ class _LogSeizureScreenState extends State<LogSeizureScreen> {
         drugUse: _drugUse,
         hormonalChanges: _hormonalChanges,
         notes: _dayNotesCtrl.text.trim().isEmpty ? null : _dayNotesCtrl.text.trim(),
-        temperature: weather['temperature'],
-        pressure: weather['pressure'],
-        humidity: weather['humidity'],
+        temperature: weather.temperature,
+        pressure: weather.pressure,
+        humidity: weather.humidity,
         createdAt: DateTime.now().toIso8601String(),
       );
 
