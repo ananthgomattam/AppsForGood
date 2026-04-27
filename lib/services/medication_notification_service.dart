@@ -23,7 +23,9 @@ class MedicationNotificationService {
   bool _initialized = false;
 
   Future<void> initialize() async {
-    if (_initialized || kIsWeb) return;
+    if (_initialized || kIsWeb || defaultTargetPlatform == TargetPlatform.windows) {
+      return;
+    }
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -57,7 +59,7 @@ class MedicationNotificationService {
   }
 
   Future<void> syncMedicationReminders() async {
-    if (kIsWeb) return;
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows) return;
 
     if (!_initialized) {
       await initialize();
