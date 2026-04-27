@@ -5,7 +5,6 @@ import '../data/daily_log.dart';
 import '../data/seizure_log.dart';
 import '../data/profile.dart';
 import '../data/medication.dart';
-import '../data/test_dataset.dart';
 import '../frontend/account_store.dart';
 
 class DatabaseHelper {
@@ -430,67 +429,6 @@ class DatabaseHelper {
     return await db.delete('seizure_log', where: 'id = ?', whereArgs: [id]);
   }
 
-  // Force-loads a fixed dataset so UI and model behavior are consistent for demos/tests.
-  Future<void> loadFixedTestData() async {
-    final db = await instance.database;
-    await _ensureTables(db);
-
-    await db.transaction((txn) async {
-      await txn.delete('seizure_log');
-      await txn.delete('daily_log');
-
-      var seizureOrdinal = 0;
-      for (final entry in fixedTestDataset) {
-        final createdAt = '${entry.date}T08:00:00.000';
-
-        final dailyMap = {
-          'date': entry.date,
-          'medicationAdherence': entry.medicationAdherence ? 1 : 0,
-          'sleepHours': entry.sleepHours,
-          'sleepQuality': entry.sleepQuality,
-          'sleepInterruptions': entry.sleepInterruptions,
-          'stressLevel': entry.stressLevel,
-          'dietQuality': entry.dietQuality,
-          'drugUse': entry.drugUse ? 1 : 0,
-          'hormonalChanges': entry.hormonalChanges ? 1 : 0,
-          'createdAt': createdAt,
-          'temperature': null,
-          'pressure': null,
-          'humidity': null,
-          'notes': 'Fixed test dataset',
-        };
-
-        await txn.insert('daily_log', dailyMap);
-
-        for (var i = 0; i < entry.seizureCount; i++) {
-          seizureOrdinal += 1;
-          final hour = (9 + i).toString().padLeft(2, '0');
-
-          await txn.insert('seizure_log', {
-            'date': entry.date,
-            'timeOfDay': '$hour:00',
-            'durationSeconds': 60 + (i * 30),
-            'seizureType': 'Tonic-clonic',
-            'symptoms': 'Test seizure #$seizureOrdinal',
-            'mood': entry.sleepQuality,
-            'notes': 'Fixed test dataset',
-            'createdAt': '${entry.date}T$hour:00:00.000',
-            'medicationAdherence': entry.medicationAdherence ? 1 : 0,
-            'sleepHours': entry.sleepHours,
-            'sleepQuality': entry.sleepQuality,
-            'sleepInterruptions': entry.sleepInterruptions,
-            'stressLevel': entry.stressLevel,
-            'dietQuality': entry.dietQuality,
-            'drugUse': entry.drugUse ? 1 : 0,
-            'hormonalChanges': entry.hormonalChanges ? 1 : 0,
-            'temperature': null,
-            'pressure': null,
-            'humidity': null,
-          });
-        }
-      }
-    });
-  }
 
   Future close() async {
     final db = await instance.database;
