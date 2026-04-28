@@ -33,6 +33,7 @@ class SeizureLog {
     final daily = dailyLog.toMap();
     return {
       if (id != null) 'id': id,
+      'username': username,
       'date': date,
       'timeOfDay': timeOfDay,
       'durationSeconds': durationSeconds,
@@ -77,7 +78,7 @@ class SeizureLog {
 
     return SeizureLog(
       id: map['id'] as int?,
-      username: 'unknown',
+      username: (map['username'] ?? 'unknown') as String,
       date: map['date'] as String,
       timeOfDay: map['timeOfDay'] as String,
       durationSeconds: map['durationSeconds'] as int,
@@ -93,6 +94,7 @@ class SeizureLog {
   // For editing an existing log without rewriting every field
   SeizureLog copyWith({
     int? id,
+    String? username,
     String? date,
     String? timeOfDay,
     int? durationSeconds,
@@ -105,7 +107,7 @@ class SeizureLog {
   }) {
     return SeizureLog(
       id: id ?? this.id,
-      username: this.username,
+      username: username ?? this.username,
       date: date ?? this.date,
       timeOfDay: timeOfDay ?? this.timeOfDay,
       durationSeconds: durationSeconds ?? this.durationSeconds,

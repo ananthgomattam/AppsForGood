@@ -279,9 +279,9 @@ class _MedicationScreenState extends State<MedicationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Medication')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
             Card(
               child: Padding(
@@ -422,35 +422,39 @@ class _MedicationScreenState extends State<MedicationScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            Expanded(
-              child: _plans.isEmpty
-                  ? const Center(child: Text('No medications added yet. Start by selecting one above.'))
-                  : ListView.builder(
-                      itemCount: _plans.length,
-                      itemBuilder: (context, index) {
-                        final plan = _plans[index];
-                        return Card(
-                          child: ListTile(
-                            title: Text('${plan.name} - ${plan.dosage}'),
-                            subtitle: Text(
-                              '${plan.frequencyCount} per ${plan.frequencyUnit} • ${plan.timesList} • starts ${plan.startDate}'
-                              '${(plan.notes ?? '').isEmpty ? '' : '\n${plan.notes}'}',
-                            ),
-                            isThreeLine: (plan.notes ?? '').isNotEmpty,
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () async {
-                                if (plan.id == null) return;
-                                await DatabaseHelper.instance.deleteMedication(plan.id!);
-                                await MedicationNotificationService.instance.syncMedicationReminders();
-                                await _getPlans();
-                              },
-                            ),
-                          ),
-                        );
-                      },
+            if (_plans.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('No medications added yet. Start by selecting one above.')),
+              )
+            else
+              ListView.builder(
+                itemCount: _plans.length,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final plan = _plans[index];
+                  return Card(
+                    child: ListTile(
+                      title: Text('${plan.name} - ${plan.dosage}'),
+                      subtitle: Text(
+                        '${plan.frequencyCount} per ${plan.frequencyUnit} • ${plan.timesList} • starts ${plan.startDate}'
+                        '${(plan.notes ?? '').isEmpty ? '' : '\n${plan.notes}'}',
+                      ),
+                      isThreeLine: (plan.notes ?? '').isNotEmpty,
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () async {
+                          if (plan.id == null) return;
+                          await DatabaseHelper.instance.deleteMedication(plan.id!);
+                          await MedicationNotificationService.instance.syncMedicationReminders();
+                          await _getPlans();
+                        },
+                      ),
                     ),
-            ),
+                  );
+                },
+              ),
           ],
         ),
       ),

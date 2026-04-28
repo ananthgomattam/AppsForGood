@@ -44,6 +44,18 @@ class AccountAuthResult {
   const AccountAuthResult({required this.success, this.message});
 }
 
+class AccountDeletionResult {
+  final bool success;
+  final String? message;
+  final bool deletedCurrentUser;
+
+  const AccountDeletionResult({
+    required this.success,
+    this.message,
+    this.deletedCurrentUser = false,
+  });
+}
+
 class FrontendAccountStore {
   FrontendAccountStore._();
 
@@ -145,6 +157,57 @@ class FrontendAccountStore {
 
     // Disconnect from database
     await DatabaseHelper.clearCurrentUser();
+  }
+
+  Future<AccountDeletionResult> deleteAccount({
+    required String username,
+    required String password,
+  }) async {
+    final normalized = username.trim().toLowerCase();
+    if (normalized.isEmpty || password.isEmpty) {
+      return const AccountDeletionResult(
+        success: false,
+        message: 'Username and password are required.',
+      );
+    }
+
+    final existing = await getAccounts();
+    FrontendAccount? account;
+    for (final item in existing) {
+      if (item.username == normalized) {
+        account = item;
+        break;
+      }
+    }
+
+    if (account == null) {
+      return const AccountDeletionResult(success: false, message: 'Account not found.');
+    }
+
+    if (account.passwordHash != _hashPassword(password)) {
+      return const AccountDeletionResult(success: false, message: 'Incorrect password.');
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await DatabaseHelper.instance.deleteUserData(normalized);
+
+    final updated = existing.where((item) => item.username != normalized).toList();
+    await _writeAccounts(updated);
+
+    await prefs.remove('$_favoritePrefix$normalized');
+    await prefs.remove('$_legacyMigratedPrefix$normalized');
+
+    final currentUser = prefs.getString(_currentUserKey);
+    final deletedCurrentUser = currentUser == normalized;
+    if (deletedCurrentUser) {
+      await prefs.remove(_currentUserKey);
+      await DatabaseHelper.clearCurrentUser();
+    }
+
+    return AccountDeletionResult(
+      success: true,
+      deletedCurrentUser: deletedCurrentUser,
+    );
   }
 
   Future<void> setCurrentUser(String username) async {

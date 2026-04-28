@@ -172,11 +172,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             const SizedBox(height: 14),
                             if (_accounts.isNotEmpty) _KnownAccountsBar(
                               accounts: _accounts,
-                              onTapAccount: (username) {
-                                _tabController.animateTo(0);
-                                _signInUsername.text = username;
-                                _signInPassword.clear();
-                              },
+                              onTapAccount: _signInWithSavedAccount,
                             ),
                             SizedBox(
                               height: 332,
@@ -201,6 +197,82 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         ),
       ),
     );
+  }
+
+  Future<String?> _promptPassword(String username) async {
+    final controller = TextEditingController();
+    bool hidePassword = true;
+
+    final password = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Sign in as $username'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Enter the password for $username to continue.'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    obscureText: hidePassword,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setDialogState(() => hidePassword = !hidePassword);
+                        },
+                        icon: Icon(hidePassword ? Icons.visibility_off : Icons.visibility),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, controller.text),
+                  child: const Text('Sign In'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+    return password;
+  }
+
+  Future<void> _signInWithSavedAccount(String username) async {
+    final password = await _promptPassword(username);
+    if (password == null) return;
+
+    setState(() => _busy = true);
+    final result = await FrontendAccountStore.instance.signIn(
+      username: username,
+      password: password,
+    );
+    if (!mounted) return;
+
+    setState(() => _busy = false);
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message ?? 'Unable to sign in.')),
+      );
+      return;
+    }
+
+    Navigator.pushReplacementNamed(context, '/dashboard');
   }
 
   Widget _buildSignInForm(BuildContext context) {
@@ -340,7 +412,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
 class _KnownAccountsBar extends StatelessWidget {
   final List<FrontendAccount> accounts;
-  final ValueChanged<String> onTapAccount;
+  final Future<void> Function(String) onTapAccount;
 
   const _KnownAccountsBar({
     required this.accounts,
