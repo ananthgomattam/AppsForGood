@@ -25,7 +25,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _hideSignInPassword = true;
   bool _hideCreatePassword = true;
   bool _hideCreateConfirmPassword = true;
-  List<FrontendAccount> _accounts = const [];
+  List<FrontendAccount> _savedAccounts = const [];
+  bool _saveProfileOnSignIn = false;
 
   @override
   void initState() {
@@ -47,9 +48,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   Future<void> _getAccounts() async {
     final list = await FrontendAccountStore.instance.getAccounts();
+    final savedUsernames = await FrontendAccountStore.instance.getSavedLoginUsernames();
+    final saved = list.where((account) => savedUsernames.contains(account.username)).toList();
     if (!mounted) return;
     setState(() {
-      _accounts = list;
+      _savedAccounts = saved;
     });
   }
 
@@ -72,6 +75,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       );
       return;
     }
+
+    // Persist save preference selected on the login page
+    if (_saveProfileOnSignIn) {
+      await FrontendAccountStore.instance.saveProfileForLogin(_signInUsername.text.trim().toLowerCase());
+      await _getAccounts();
+    }
+
+    if (!mounted) return;
 
     Navigator.pushReplacementNamed(context, '/dashboard');
   }
@@ -170,9 +181,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               ],
                             ),
                             const SizedBox(height: 14),
-                            if (_accounts.isNotEmpty) _KnownAccountsBar(
-                              accounts: _accounts,
+                            if (_savedAccounts.isNotEmpty) _KnownAccountsBar(
+                              accounts: _savedAccounts,
                               onTapAccount: _signInWithSavedAccount,
+                              onRemoveAccount: (username) async {
+                                await FrontendAccountStore.instance.removeProfileFromLogin(username);
+                                await _getAccounts();
+                              },
                             ),
                             SizedBox(
                               height: 332,
@@ -303,6 +318,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
             validator: (value) => (value == null || value.isEmpty) ? 'Password is required' : null,
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Checkbox(
+                value: _saveProfileOnSignIn,
+                onChanged: (v) => setState(() => _saveProfileOnSignIn = v ?? false),
+              ),
+              const Expanded(child: Text('Save this profile on the login page')),
+            ],
+          ),
           const Spacer(),
           SizedBox(
             width: double.infinity,
@@ -390,6 +415,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               return null;
             },
           ),
+          const SizedBox(height: 8),
+          const Text(
+            "Please write down your username and password — there is no 'Forgot password' option.",
+            style: TextStyle(fontSize: 12),
+            textAlign: TextAlign.center,
+          ),
           const Spacer(),
           SizedBox(
             width: double.infinity,
@@ -413,10 +444,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 class _KnownAccountsBar extends StatelessWidget {
   final List<FrontendAccount> accounts;
   final Future<void> Function(String) onTapAccount;
+  final Future<void> Function(String)? onRemoveAccount;
 
   const _KnownAccountsBar({
     required this.accounts,
     required this.onTapAccount,
+    this.onRemoveAccount,
   });
 
   @override
@@ -426,7 +459,7 @@ class _KnownAccountsBar extends StatelessWidget {
         Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            'Quick account switch',
+            'Saved for login',
             style: Theme.of(context).textTheme.labelLarge,
           ),
         ),
@@ -437,10 +470,12 @@ class _KnownAccountsBar extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             itemBuilder: (context, index) {
               final username = accounts[index].username;
-              return ActionChip(
+              return InputChip(
                 avatar: const Icon(Icons.person_outline, size: 16, color: Color(0xFF660066)),
                 label: Text(username),
                 onPressed: () => onTapAccount(username),
+                onDeleted: onRemoveAccount == null ? null : () => onRemoveAccount!(username),
+                deleteIcon: const Icon(Icons.close, size: 18),
               );
             },
             separatorBuilder: (_, _) => const SizedBox(width: 8),

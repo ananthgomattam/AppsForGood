@@ -62,6 +62,7 @@ class FrontendAccountStore {
   static final FrontendAccountStore instance = FrontendAccountStore._();
 
   static const String _accountsKey = 'frontend_accounts_v1';
+  static const String _savedLoginAccountsKey = 'frontend_saved_login_accounts_v1';
   static const String _currentUserKey = 'frontend_current_user_v1';
   static const String _favoritePrefix = 'frontend_favorite_meds_';
   static const String _legacyMigratedPrefix = 'frontend_unknown_migrated_v1_';
@@ -82,6 +83,53 @@ class FrontendAccountStore {
   Future<String?> getCurrentUsername() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_currentUserKey);
+  }
+
+  Future<List<String>> getSavedLoginUsernames() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_savedLoginAccountsKey) ?? <String>[];
+  }
+
+  Future<bool> isSavedForLogin(String username) async {
+    final normalized = username.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+
+    final saved = await getSavedLoginUsernames();
+    return saved.contains(normalized);
+  }
+
+  Future<void> saveProfileForLogin(String username) async {
+    final normalized = username.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_savedLoginAccountsKey) ?? <String>[];
+    if (saved.contains(normalized)) {
+      return;
+    }
+
+    saved.add(normalized);
+    await prefs.setStringList(_savedLoginAccountsKey, saved);
+  }
+
+  Future<void> removeProfileFromLogin(String username) async {
+    final normalized = username.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_savedLoginAccountsKey) ?? <String>[];
+    if (!saved.contains(normalized)) {
+      return;
+    }
+
+    saved.remove(normalized);
+    await prefs.setStringList(_savedLoginAccountsKey, saved);
   }
 
   Future<AccountAuthResult> signUp({
@@ -194,6 +242,7 @@ class FrontendAccountStore {
     final updated = existing.where((item) => item.username != normalized).toList();
     await _writeAccounts(updated);
 
+    await removeProfileFromLogin(normalized);
     await prefs.remove('$_favoritePrefix$normalized');
     await prefs.remove('$_legacyMigratedPrefix$normalized');
 

@@ -142,12 +142,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     final password = await _promptForPassword(
       title: 'Delete account',
       message: 'Enter the password for $_user to permanently delete this account and its data.',
       confirmLabel: 'Delete',
     );
     if (password == null) return;
+
+    if (!mounted) return;
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -177,22 +182,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
 
     if (!result.success) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text(result.message ?? 'Unable to delete account.')),
       );
       return;
     }
 
     if (result.deletedCurrentUser) {
-      if (!context.mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+      navigator.pushNamedAndRemoveUntil('/login', (_) => false);
       return;
     }
 
     await _loadUser();
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(content: Text('Deleted $_user.')),
     );
   }
@@ -204,8 +207,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _save() async {
+    final messenger = ScaffoldMessenger.of(context);
+
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Name is required to save your profile.')),
       );
       return;
@@ -242,6 +247,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await DatabaseHelper.instance.updateProfile(updated);
     }
 
+    // Save preference for login page handled on the login screen now.
+
     final refreshed = await DatabaseHelper.instance.getProfile();
     if (!mounted) return;
 
@@ -250,7 +257,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _profile = refreshed;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       const SnackBar(content: Text('Profile saved to backend.')),
     );
   }
@@ -343,6 +350,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            
             const SizedBox(height: 12),
             Card(
               child: SwitchListTile(

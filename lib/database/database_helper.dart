@@ -47,7 +47,7 @@ class DatabaseHelper {
     final path = join(dbPath, filePath);
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -69,6 +69,14 @@ class DatabaseHelper {
     if (oldVersion < 3) {
       try {
         await db.execute('ALTER TABLE seizure_log ADD COLUMN username TEXT NOT NULL DEFAULT "unknown"');
+      } catch (_) {}
+    }
+    if (oldVersion < 4) {
+      try {
+        await db.execute('ALTER TABLE daily_log ADD COLUMN isSeizure INTEGER NOT NULL DEFAULT 0');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE seizure_log ADD COLUMN isSeizure INTEGER NOT NULL DEFAULT 1');
       } catch (_) {}
     }
   }
@@ -120,6 +128,7 @@ class DatabaseHelper {
       username TEXT NOT NULL,
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
+      isSeizure INTEGER NOT NULL DEFAULT 0,
       medicationAdherence INTEGER NOT NULL,
       sleepHours REAL NOT NULL,
       sleepQuality INTEGER NOT NULL,
@@ -148,6 +157,7 @@ class DatabaseHelper {
       mood INTEGER NOT NULL,
       notes TEXT,
       createdAt TEXT NOT NULL,
+      isSeizure INTEGER NOT NULL DEFAULT 1,
       medicationAdherence INTEGER NOT NULL,
       sleepHours REAL NOT NULL,
       sleepQuality INTEGER NOT NULL,
@@ -298,6 +308,13 @@ class DatabaseHelper {
   Future<int> deleteDailyLog(int id) async {
     final db = await instance.database;
     return await db.delete('daily_log', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Delete a daily log by date for current user
+  Future<int> deleteDailyLogByDate(String date) async {
+    final db = await instance.database;
+    final username = await _getCurrentUsername();
+    return await db.delete('daily_log', where: 'username = ? AND date = ?', whereArgs: [username, date]);
   }
 
   // CRUD operations for seizure log
