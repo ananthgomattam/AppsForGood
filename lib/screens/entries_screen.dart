@@ -16,6 +16,28 @@ class _EntriesScreenState extends State<EntriesScreen> {
   List<DailyLog> _dailyLogs = const [];
   List<SeizureLog> _seizureLogs = const [];
 
+  String _weatherSummary({
+    required double? temperature,
+    required double? pressure,
+    required double? humidity,
+  }) {
+    final parts = <String>[];
+    if (temperature != null) {
+      parts.add('${temperature.toStringAsFixed(1)} C');
+    }
+    if (pressure != null) {
+      parts.add('${pressure.toStringAsFixed(0)} hPa');
+    }
+    if (humidity != null) {
+      parts.add('${humidity.toStringAsFixed(0)}% RH');
+    }
+
+    if (parts.isEmpty) {
+      return 'Weather unavailable';
+    }
+    return 'Weather ${parts.join(' | ')}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -27,12 +49,14 @@ class _EntriesScreenState extends State<EntriesScreen> {
     final daily = await DatabaseHelper.instance.getAllDailyLogs();
     final seizure = await DatabaseHelper.instance.getAllSeizureLogs();
 
-    daily.sort((a, b) => b.date.compareTo(a.date));
+    // Sort seizure logs by date then time
     seizure.sort((a, b) {
       final byDate = b.date.compareTo(a.date);
       if (byDate != 0) return byDate;
       return b.timeOfDay.compareTo(a.timeOfDay);
     });
+
+    daily.sort((a, b) => b.date.compareTo(a.date));
 
     if (!mounted) return;
     setState(() {
@@ -49,7 +73,7 @@ class _EntriesScreenState extends State<EntriesScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete daily entry?'),
-          content: Text('This will remove the daily entry for ${log.date}.'),
+          content: Text('This will remove the daily entry for ${log.date}.${log.isSeizure ? " (This will also remove the associated seizure log)" : ""}'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
             FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
@@ -59,6 +83,17 @@ class _EntriesScreenState extends State<EntriesScreen> {
     );
 
     if (confirm != true) return;
+    
+    // If this was a seizure day, also delete the associated seizure log(s)
+    if (log.isSeizure) {
+      final seizures = await DatabaseHelper.instance.getSeizureLogsByDate(log.date);
+      for (final seizure in seizures) {
+        if (seizure.id != null) {
+          await DatabaseHelper.instance.deleteSeizureLog(seizure.id!);
+        }
+      }
+    }
+    
     await DatabaseHelper.instance.deleteDailyLog(log.id!);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -74,7 +109,7 @@ class _EntriesScreenState extends State<EntriesScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete seizure entry?'),
-          content: Text('This will remove the seizure entry on ${log.date} at ${log.timeOfDay}.'),
+          content: Text('This will remove the seizure entry on ${log.date} at ${log.timeOfDay}. (This will also remove the associated daily log)'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
             FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
@@ -84,7 +119,13 @@ class _EntriesScreenState extends State<EntriesScreen> {
     );
 
     if (confirm != true) return;
+    
+    // Delete the seizure log first
     await DatabaseHelper.instance.deleteSeizureLog(log.id!);
+    
+    // Also delete the associated daily log for that date
+    await DatabaseHelper.instance.deleteDailyLogByDate(log.date);
+    
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Deleted seizure entry on ${log.date}.')),
@@ -242,6 +283,18 @@ class _EntriesScreenState extends State<EntriesScreen> {
     );
 
     await DatabaseHelper.instance.updateDailyLog(updated);
+    
+    // If this was a seizure day, also update the associated seizure log(s) with the new daily factors
+    if (updated.isSeizure) {
+      final seizures = await DatabaseHelper.instance.getSeizureLogsByDate(updated.date);
+      for (final seizure in seizures) {
+        final updatedSeizure = seizure.copyWith(
+          dailyLog: updated,
+        );
+        await DatabaseHelper.instance.updateSeizureLog(updatedSeizure);
+      }
+    }
+    
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Updated daily entry for ${updated.date}.')),
@@ -372,6 +425,11 @@ class _EntriesScreenState extends State<EntriesScreen> {
     );
 
     await DatabaseHelper.instance.updateSeizureLog(updated);
+    
+    // Also update the associated daily log if date changed
+    final updatedDaily = updated.dailyLog.copyWith(date: updated.date);
+    await DatabaseHelper.instance.updateDailyLog(updatedDaily);
+    
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Updated seizure entry on ${updated.date}.')),
@@ -393,10 +451,16 @@ class _EntriesScreenState extends State<EntriesScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Entries'),
-          bottom: const TabBar(
+          bottom: TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.white,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
             tabs: [
-              Tab(text: 'Daily Logs'),
-              Tab(text: 'Seizure Logs'),
+              Tab(text: 'Daily Logs (${_dailyLogs.length})'),
+              Tab(text: 'Seizure Logs (${_seizureLogs.length})'),
             ],
           ),
           actions: [
@@ -432,10 +496,11 @@ class _EntriesScreenState extends State<EntriesScreen> {
         final log = _dailyLogs[index];
         return Card(
           child: ListTile(
-            leading: const Icon(Icons.calendar_today_outlined),
+            isThreeLine: true,
+            leading: Icon(log.isSeizure ? Icons.bolt_rounded : Icons.calendar_today_outlined, color: log.isSeizure ? Colors.red : null),
             title: Text(log.date),
             subtitle: Text(
-              'Sleep ${log.sleepHours.toStringAsFixed(1)}h | Stress ${log.stressLevel}/10 | Meds ${log.medicationAdherence ? "Yes" : "No"}',
+              '${log.isSeizure ? "Seizure day | " : ""}Sleep ${log.sleepHours.toStringAsFixed(1)}h | Stress ${log.stressLevel}/10 | Meds ${log.medicationAdherence ? "Yes" : "No"}\n${_weatherSummary(temperature: log.temperature, pressure: log.pressure, humidity: log.humidity)}',
             ),
             trailing: PopupMenuButton<String>(
               onSelected: (value) async {
@@ -469,10 +534,11 @@ class _EntriesScreenState extends State<EntriesScreen> {
         final log = _seizureLogs[index];
         return Card(
           child: ListTile(
+            isThreeLine: true,
             leading: const Icon(Icons.bolt_rounded),
             title: Text('${log.date} at ${log.timeOfDay}'),
             subtitle: Text(
-              '${log.seizureType} | ${log.durationSeconds}s | Mood ${log.mood}/5',
+              '${log.seizureType} | ${log.durationSeconds}s | Mood ${log.mood}/5\n${_weatherSummary(temperature: log.dailyLog.temperature, pressure: log.dailyLog.pressure, humidity: log.dailyLog.humidity)}',
             ),
             trailing: PopupMenuButton<String>(
               onSelected: (value) async {

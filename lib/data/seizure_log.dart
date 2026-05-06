@@ -33,6 +33,7 @@ class SeizureLog {
     final daily = dailyLog.toMap();
     return {
       if (id != null) 'id': id,
+      'username': username,
       'date': date,
       'timeOfDay': timeOfDay,
       'durationSeconds': durationSeconds,
@@ -41,6 +42,7 @@ class SeizureLog {
       'mood': mood,
       'notes': notes,
       'createdAt': createdAt,
+      'isSeizure': 1,
       'medicationAdherence': daily['medicationAdherence'],
       'sleepHours': daily['sleepHours'],
       'sleepQuality': daily['sleepQuality'],
@@ -57,35 +59,38 @@ class SeizureLog {
 
   // For reading BACK from the database
   factory SeizureLog.fromMap(Map<String, dynamic> map) {
+    // Build a minimal DailyLog from columns embedded in the seizure row.
     final daily = DailyLog.fromMap({
       'id': null,
-      'date': map['date'],
-      'medicationAdherence': map['medicationAdherence'],
-      'sleepHours': map['sleepHours'],
-      'sleepQuality': map['sleepQuality'],
-      'sleepInterruptions': map['sleepInterruptions'],
-      'stressLevel': map['stressLevel'],
-      'dietQuality': map['dietQuality'],
-      'drugUse': map['drugUse'],
+      'username': (map['username'] ?? 'unknown') as String,
+      'date': (map['date'] ?? '') as String,
+      'medicationAdherence': map['medicationAdherence'] ?? 0,
+      'sleepHours': map['sleepHours'] ?? 0.0,
+      'sleepQuality': map['sleepQuality'] ?? 3,
+      'sleepInterruptions': map['sleepInterruptions'] ?? 0,
+      'stressLevel': map['stressLevel'] ?? 5,
+      'dietQuality': map['dietQuality'] ?? 3,
+      'drugUse': map['drugUse'] ?? 0,
       'hormonalChanges': map['hormonalChanges'],
-      'createdAt': map['createdAt'],
+      'createdAt': (map['createdAt'] ?? DateTime.now().toIso8601String()) as String,
       'temperature': map['temperature'],
       'pressure': map['pressure'],
       'humidity': map['humidity'],
       'notes': null,
+      'isSeizure': 1,
     });
 
     return SeizureLog(
       id: map['id'] as int?,
-      username: 'unknown',
-      date: map['date'] as String,
-      timeOfDay: map['timeOfDay'] as String,
-      durationSeconds: map['durationSeconds'] as int,
-      seizureType: map['seizureType'] as String,
+      username: (map['username'] ?? 'unknown') as String,
+      date: (map['date'] ?? '') as String,
+      timeOfDay: (map['timeOfDay'] ?? '') as String,
+      durationSeconds: (map['durationSeconds'] as int?) ?? 0,
+      seizureType: (map['seizureType'] ?? '') as String,
       symptoms: map['symptoms'] as String?,
-      mood: map['mood'] as int,
+      mood: (map['mood'] as int?) ?? 3,
       notes: map['notes'] as String?,
-      createdAt: map['createdAt'] as String,
+      createdAt: (map['createdAt'] ?? DateTime.now().toIso8601String()) as String,
       dailyLog: daily,
     );
   }
@@ -93,6 +98,7 @@ class SeizureLog {
   // For editing an existing log without rewriting every field
   SeizureLog copyWith({
     int? id,
+    String? username,
     String? date,
     String? timeOfDay,
     int? durationSeconds,
@@ -105,7 +111,7 @@ class SeizureLog {
   }) {
     return SeizureLog(
       id: id ?? this.id,
-      username: this.username,
+      username: username ?? this.username,
       date: date ?? this.date,
       timeOfDay: timeOfDay ?? this.timeOfDay,
       durationSeconds: durationSeconds ?? this.durationSeconds,

@@ -24,7 +24,6 @@ class PredictionService {
     final allDailyLogs = await DatabaseHelper.instance.getAllDailyLogs();
     final allSeizureLogs = await DatabaseHelper.instance.getAllSeizureLogs();
 
-    // Not enough data — return early
     if (allDailyLogs.length < 7) {
       return PredictionResult(
         riskScore: 0,
@@ -37,82 +36,96 @@ class PredictionService {
     final sortedLogs = [...allDailyLogs]
       ..sort((a, b) => a.date.compareTo(b.date));
 
-    double rawRisk = 0.0;
-    double totalWeight = 0.0;
+    double totalTriggerRisk = 0.0;
+    double totalTriggerWeight = 0.0;
     final activeTriggers = <String>[];
 
     for (final trigger in triggers) {
       if (!trigger.isTrigger || trigger.weight == 0.0) continue;
+      
       final todayValue = _getFactorValue(today, trigger.factorName);
       if (todayValue == null) continue;
-      final normalizedRisk = _calculateTriggerContribution(
+      
+      final triggerContribution = _calculateTriggerContribution(
         todayValue: todayValue,
         trigger: trigger,
       );
-      if (normalizedRisk > 0.1) activeTriggers.add(trigger.factorName);
-      rawRisk += normalizedRisk * trigger.weight;
-      totalWeight += trigger.weight;
+      
+      if (triggerContribution > 0.1) {
+        activeTriggers.add(trigger.factorName);
+      }
+      
+      totalTriggerRisk += triggerContribution * trigger.weight;
+      totalTriggerWeight += trigger.weight;
     }
 
-    final triggerRisk = totalWeight > 0
-        ? (rawRisk / totalWeight).clamp(0.0, 1.0)
+    final triggerRisk = totalTriggerWeight > 0
+        ? (totalTriggerRisk / totalTriggerWeight).clamp(0.0, 1.0)
         : 0.0;
 
-    final recentLogs = sortedLogs
+    final beforeToday = sortedLogs
         .where((log) => log.date.compareTo(today.date) < 0)
-        .toList()
-        .reversed
-        .take(7)
         .toList();
+    final recentLogs = beforeToday.reversed.take(7).toList();
 
-    double avgSleep = 7.0;
-    double avgStress = 5.0;
+    double averageSleepHours = 7.0;
+    double averageStressLevel = 5.0;
     double rollingRisk = 0.0;
 
     if (recentLogs.isNotEmpty) {
-      avgSleep =
-          recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) /
-          recentLogs.length;
-      avgStress =
-          recentLogs
-              .map((l) => l.stressLevel.toDouble())
-              .reduce((a, b) => a + b) /
-          recentLogs.length;
-      final missedMedCount = recentLogs
-          .where((l) => !l.medicationAdherence)
+      double totalSleep = 0.0;
+      double totalStress = 0.0;
+      
+      for (final log in recentLogs) {
+        totalSleep += log.sleepHours;
+        totalStress += log.stressLevel.toDouble();
+      }
+      
+      averageSleepHours = totalSleep / recentLogs.length;
+      averageStressLevel = totalStress / recentLogs.length;
+      
+      final missedMedicationCount = recentLogs
+          .where((log) => !log.medicationAdherence)
           .length;
 
-      if (avgSleep < 6.0) rollingRisk += 0.15;
-      if (avgSleep < 5.0) rollingRisk += 0.10;
-      if (avgStress > 7.0) rollingRisk += 0.15;
-      if (avgStress > 8.5) rollingRisk += 0.10;
-      if (missedMedCount >= 2) rollingRisk += 0.15;
-      if (missedMedCount >= 4) rollingRisk += 0.15;
+      if (averageSleepHours < 6.0) rollingRisk += 0.15;
+      if (averageSleepHours < 5.0) rollingRisk += 0.10;
+      if (averageStressLevel > 7.0) rollingRisk += 0.15;
+      if (averageStressLevel > 8.5) rollingRisk += 0.10;
+      if (missedMedicationCount >= 2) rollingRisk += 0.15;
+      if (missedMedicationCount >= 4) rollingRisk += 0.15;
     }
 
     rollingRisk = rollingRisk.clamp(0.0, 1.0);
 
-    final recentSeizures = allSeizureLogs
+    final allSeizuresBeforeToday = allSeizureLogs
         .where((log) => log.date.compareTo(today.date) < 0)
         .toList();
 
     double seizureHistoryRisk = 0.0;
     final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-    final recentSeizureCount = recentSeizures.where((log) {
-      final date = DateTime.parse(log.date);
-      return date.isAfter(thirtyDaysAgo);
-    }).length;
+    
+    int recentSeizureCount = 0;
+    for (final seizure in allSeizuresBeforeToday) {
+      final seizureDate = DateTime.parse(seizure.date);
+      if (seizureDate.isAfter(thirtyDaysAgo)) {
+        recentSeizureCount++;
+      }
+    }
 
     if (recentSeizureCount >= 1) seizureHistoryRisk += 0.10;
     if (recentSeizureCount >= 3) seizureHistoryRisk += 0.10;
     if (recentSeizureCount >= 5) seizureHistoryRisk += 0.10;
 
-    if (recentSeizures.isNotEmpty) {
-      final lastSeizureDate = DateTime.parse(recentSeizures.last.date);
+    if (allSeizuresBeforeToday.isNotEmpty) {
+      final lastSeizure = allSeizuresBeforeToday.last;
+      final lastSeizureDate = DateTime.parse(lastSeizure.date);
       final hoursSinceLastSeizure = DateTime.now()
           .difference(lastSeizureDate)
           .inHours;
-      if (hoursSinceLastSeizure < 48) seizureHistoryRisk += 0.20;
+      if (hoursSinceLastSeizure < 48) {
+        seizureHistoryRisk += 0.20;
+      }
     }
 
     seizureHistoryRisk = seizureHistoryRisk.clamp(0.0, 1.0);
@@ -127,13 +140,14 @@ class PredictionService {
     }
 
     final medicationPenalty = medicationStreak < 3 ? 0.2 : 0.0;
+    
     double combinedRisk =
         (triggerRisk * 0.35) +
         (rollingRisk * 0.30) +
         (seizureHistoryRisk * 0.25) +
         (medicationPenalty * 0.10);
 
-    double interactionMultiplier = _calculateInteractionEffects(
+    final interactionMultiplier = _calculateInteractionEffects(
       today: today,
       recentLogs: recentLogs,
       medicationStreak: medicationStreak,
@@ -153,34 +167,46 @@ class PredictionService {
       riskLevel = 'High';
     }
 
-    final explanationParts = <String>[];
-    if (avgSleep < 6.0) {
-      explanationParts.add('poor sleep (${avgSleep.toStringAsFixed(1)} hrs)');
+    final factors = <String>[];
+    
+    if (averageSleepHours < 6.0) {
+      final sleepFormatted = averageSleepHours.toStringAsFixed(1);
+      factors.add('poor sleep ($sleepFormatted hrs)');
     }
-    if (avgStress > 7.0) {
-      explanationParts.add('high stress (${avgStress.toStringAsFixed(1)}/10)');
+    
+    if (averageStressLevel > 7.0) {
+      final stressFormatted = averageStressLevel.toStringAsFixed(1);
+      factors.add('high stress ($stressFormatted/10)');
     }
-    if (medicationStreak < 2) explanationParts.add('missed medication');
+    
+    if (medicationStreak < 2) {
+      factors.add('missed medication');
+    }
+    
     if (recentSeizureCount >= 3) {
-      explanationParts.add('recent seizure activity');
+      factors.add('recent seizure activity');
     }
-    if (today.hormonalChanges == true) explanationParts.add('hormonal changes');
+    
+    if (today.hormonalChanges == true) {
+      factors.add('hormonal changes');
+    }
 
     String explanation;
-    if (explanationParts.isEmpty) {
+    if (factors.isEmpty) {
       explanation = 'All factors within normal range';
-    } else if (explanationParts.length == 1) {
-      explanation = 'Detected: ${explanationParts[0]}';
-    } else if (explanationParts.length == 2) {
-      explanation =
-          'Detected: ${explanationParts[0]} and ${explanationParts[1]}';
+    } else if (factors.length == 1) {
+      explanation = 'Detected: ${factors[0]}';
+    } else if (factors.length == 2) {
+      explanation = 'Detected: ${factors[0]} and ${factors[1]}';
     } else {
-      final parts = explanationParts.sublist(0, explanationParts.length - 1);
-      explanation =
-          'Detected: ${parts.join(", ")}, and ${explanationParts.last}';
+      final allButLast = factors.sublist(0, factors.length - 1);
+      final allButLastJoined = allButLast.join(', ');
+      explanation = 'Detected: $allButLastJoined, and ${factors.last}';
     }
 
-    if (interactionMultiplier > 1.0) explanation += ' (dangerous combination)';
+    if (interactionMultiplier > 1.0) {
+      explanation += ' (dangerous combination)';
+    }
 
     return PredictionResult(
       riskScore: riskScore,
@@ -198,22 +224,36 @@ class PredictionService {
   }) {
     double multiplier = 1.0;
 
-    final avgSleep = recentLogs.isNotEmpty
-        ? recentLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) /
-              recentLogs.length
-        : 7.0;
-    final avgStress = recentLogs.isNotEmpty
-        ? recentLogs
-                  .map((l) => l.stressLevel.toDouble())
-                  .reduce((a, b) => a + b) /
-              recentLogs.length
-        : 5.0;
+    double averageSleep = 7.0;
+    double averageStress = 5.0;
+    
+    if (recentLogs.isNotEmpty) {
+      double totalSleep = 0.0;
+      double totalStress = 0.0;
+      
+      for (final log in recentLogs) {
+        totalSleep += log.sleepHours;
+        totalStress += log.stressLevel.toDouble();
+      }
+      
+      averageSleep = totalSleep / recentLogs.length;
+      averageStress = totalStress / recentLogs.length;
+    }
 
-    if (avgSleep < 6.0 && avgStress > 7.0) {
+    final poorSleepAndHighStress = averageSleep < 6.0 && averageStress > 7.0;
+    if (poorSleepAndHighStress) {
       multiplier = 1.4;
-    } else if (medicationStreak < 2 && activeTriggers.isNotEmpty) {
+      return multiplier;
+    }
+
+    final missedMedsAndTriggers = medicationStreak < 2 && activeTriggers.isNotEmpty;
+    if (missedMedsAndTriggers) {
       multiplier = 1.35;
-    } else if (today.hormonalChanges == true && today.stressLevel > 7) {
+      return multiplier;
+    }
+
+    final hormonalAndStressed = today.hormonalChanges == true && today.stressLevel > 7;
+    if (hormonalAndStressed) {
       multiplier = 1.25;
     }
 
@@ -226,24 +266,26 @@ class PredictionService {
   }) {
     final trend = trigger.seizureAvg - trigger.normalAvg;
 
-    // Weather factors currently use a deviation-only trigger definition,
-    // so keep absolute distance behavior for them.
-    final isDeviationOnlyFactor =
+    final isWeatherFactor =
         trigger.factorName == 'Temperature' ||
         trigger.factorName == 'Pressure' ||
         trigger.factorName == 'Humidity';
 
-    if (isDeviationOnlyFactor) {
+    if (isWeatherFactor) {
       final deviation = (todayValue - trigger.normalAvg).abs();
       return (deviation * trigger.weight).clamp(0.0, 1.0);
     }
 
-    if (trend == 0.0) return 0.0;
+    if (trend == 0.0) {
+      return 0.0;
+    }
 
-    final directionalDelta = (todayValue - trigger.normalAvg) * trend.sign;
-    if (directionalDelta <= 0.0) return 0.0;
+    final directionalChange = (todayValue - trigger.normalAvg) * trend.sign;
+    if (directionalChange <= 0.0) {
+      return 0.0;
+    }
 
-    return (directionalDelta * trigger.weight).clamp(0.0, 1.0);
+    return (directionalChange * trigger.weight).clamp(0.0, 1.0);
   }
 
   double? _getFactorValue(DailyLog log, String factorName) {

@@ -12,6 +12,7 @@ class DailyLog {
   final bool? hormonalChanges;
   final String? notes;
   final String createdAt;
+  final bool isSeizure;
 
   // Auto-filled later
   final double? temperature;
@@ -32,6 +33,7 @@ class DailyLog {
     this.hormonalChanges,
     this.notes,
     required this.createdAt,
+    this.isSeizure = false,
     this.temperature,
     this.pressure,
     this.humidity,
@@ -56,6 +58,7 @@ class DailyLog {
       'pressure': pressure,
       'humidity': humidity,
       'notes': notes,
+      'isSeizure': isSeizure ? 1 : 0,
     };
   }
 
@@ -63,21 +66,22 @@ class DailyLog {
   factory DailyLog.fromMap(Map<String, dynamic> map) {
     return DailyLog(
       id: map['id'] as int?,
-      username: map['username'] as String,
-      date: map['date'] as String,
-      medicationAdherence: map['medicationAdherence'] == 1,
-      sleepHours: (map['sleepHours'] as num).toDouble(),
-      sleepQuality: map['sleepQuality'] as int,
-      sleepInterruptions: map['sleepInterruptions'] as int,
-      stressLevel: map['stressLevel'] as int,
-      dietQuality: map['dietQuality'] as int,
-      drugUse: map['drugUse'] == 1,
+      username: (map['username'] ?? 'unknown') as String,
+      date: (map['date'] ?? '') as String,
+      medicationAdherence: (map['medicationAdherence'] == null) ? false : map['medicationAdherence'] == 1,
+      sleepHours: ((map['sleepHours'] as num?)?.toDouble()) ?? 0.0,
+      sleepQuality: (map['sleepQuality'] as int?) ?? 3,
+      sleepInterruptions: (map['sleepInterruptions'] as int?) ?? 0,
+      stressLevel: (map['stressLevel'] as int?) ?? 5,
+      dietQuality: (map['dietQuality'] as int?) ?? 3,
+      drugUse: (map['drugUse'] == null) ? false : map['drugUse'] == 1,
       hormonalChanges: map['hormonalChanges'] == null ? null : map['hormonalChanges'] == 1,
-      createdAt: map['createdAt'] as String,
+      createdAt: (map['createdAt'] ?? DateTime.now().toIso8601String()) as String,
       temperature: (map['temperature'] as num?)?.toDouble(),
       pressure: (map['pressure'] as num?)?.toDouble(),
       humidity: (map['humidity'] as num?)?.toDouble(),
       notes: map['notes'] as String?,
+      isSeizure: (map['isSeizure'] == null) ? false : map['isSeizure'] == 1,
     );
   }
 
@@ -98,6 +102,7 @@ class DailyLog {
     double? pressure,
     double? humidity,
     String? notes,
+    bool? isSeizure,
   }) {
     return DailyLog(
       id: id ?? this.id,
@@ -112,6 +117,7 @@ class DailyLog {
       drugUse: drugUse ?? this.drugUse,
       hormonalChanges: hormonalChanges ?? this.hormonalChanges,
       createdAt: createdAt ?? this.createdAt,
+      isSeizure: isSeizure ?? this.isSeizure,
       temperature: temperature ?? this.temperature,
       pressure: pressure ?? this.pressure,
       humidity: humidity ?? this.humidity,

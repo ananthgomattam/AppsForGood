@@ -68,6 +68,29 @@ class _LogSeizureScreenState extends State<LogSeizureScreen> {
     return '$hh:$mm';
   }
 
+  DateTime _resolveWeatherDateTime() {
+    final parsedDate = DateTime.tryParse(_dateCtrl.text.trim());
+    final baseDate = parsedDate ?? _selectedDate ?? DateTime.now();
+
+    // If no seizure-time exists, sample midday for daily snapshots.
+    if (!_isSeizureDay || _timeCtrl.text.trim().isEmpty) {
+      return DateTime(baseDate.year, baseDate.month, baseDate.day, 12);
+    }
+
+    final parts = _timeCtrl.text.trim().split(':');
+    if (parts.length != 2) {
+      return DateTime(baseDate.year, baseDate.month, baseDate.day, 12);
+    }
+
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) {
+      return DateTime(baseDate.year, baseDate.month, baseDate.day, 12);
+    }
+
+    return DateTime(baseDate.year, baseDate.month, baseDate.day, hour, minute);
+  }
+
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -101,16 +124,41 @@ class _LogSeizureScreenState extends State<LogSeizureScreen> {
     setState(() => _saving = true);
 
     try {
-      final weather = await WeatherService().getWeather();
+      final weatherDateTime = _resolveWeatherDateTime();
+      final weather = await WeatherService().getWeatherAt(weatherDateTime);
       final username = await FrontendAccountStore.instance.getCurrentUsername() ?? 'unknown';
+      // Defensive parsing for numeric fields to avoid runtime exceptions
+      final sleepHours = double.tryParse(_sleepHoursCtrl.text.trim());
+      final sleepInterruptions = int.tryParse(_sleepBreaksCtrl.text.trim());
+      final duration = _isSeizureDay ? int.tryParse(_durationCtrl.text.trim()) : null;
+      if (sleepHours == null || sleepHours < 0 || sleepHours > 24) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter valid sleep hours (0-24).')));
+        return;
+      }
+      if (sleepInterruptions == null || sleepInterruptions < 0) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter valid sleep interruptions (0+).')));
+        return;
+      }
+      if (_isSeizureDay && (duration == null || duration <= 0)) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid seizure duration in seconds.')),
+        );
+        return;
+      }
 
       final dailyLog = DailyLog(
         username: username,
         date: _dateCtrl.text,
         medicationAdherence: _medicationAdherence,
-        sleepHours: double.parse(_sleepHoursCtrl.text),
+        sleepHours: sleepHours,
         sleepQuality: _sleepQuality,
-        sleepInterruptions: int.parse(_sleepBreaksCtrl.text),
+        sleepInterruptions: sleepInterruptions,
         stressLevel: _stressLevel,
         dietQuality: _dietQuality,
         drugUse: _drugUse,
@@ -119,46 +167,34 @@ class _LogSeizureScreenState extends State<LogSeizureScreen> {
         temperature: weather.temperature,
         pressure: weather.pressure,
         humidity: weather.humidity,
+        isSeizure: _isSeizureDay,
         createdAt: DateTime.now().toIso8601String(),
       );
 
-      final existingDaily = await DatabaseHelper.instance.getDailyLogByDate(_dateCtrl.text);
-      final syncedDaily = existingDaily == null
-          ? dailyLog
-          : dailyLog.copyWith(id: existingDaily.id, createdAt: existingDaily.createdAt);
-
-      if (existingDaily == null) {
-        await DatabaseHelper.instance.insertDailyLog(syncedDaily);
-      } else {
-        await DatabaseHelper.instance.updateDailyLog(syncedDaily);
-      }
+      await DatabaseHelper.instance.insertDailyLog(dailyLog);
 
       if (_isSeizureDay) {
         final seizureLog = SeizureLog(
           username: username,
           date: _dateCtrl.text,
           timeOfDay: _timeCtrl.text,
-          durationSeconds: int.parse(_durationCtrl.text),
+          durationSeconds: duration!,
           seizureType: _seizureType,
           symptoms: _symptomsCtrl.text.trim().isEmpty ? null : _symptomsCtrl.text.trim(),
           mood: _mood,
           notes: _seizureNotesCtrl.text.trim().isEmpty ? null : _seizureNotesCtrl.text.trim(),
           createdAt: DateTime.now().toIso8601String(),
-          dailyLog: syncedDaily,
+          dailyLog: dailyLog,
         );
 
-        final existingSeizures = await DatabaseHelper.instance.getSeizureLogsByDate(_dateCtrl.text);
-        if (existingSeizures.isEmpty) {
-          await DatabaseHelper.instance.insertSeizureLog(seizureLog);
-        } else {
-          await DatabaseHelper.instance.updateSeizureLog(seizureLog.copyWith(id: existingSeizures.first.id));
-        }
+        await DatabaseHelper.instance.insertSeizureLog(seizureLog);
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
+      final err = e.toString();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save this entry. Please check your inputs and try again.')),
+        SnackBar(content: Text('Could not save this entry. ${err.length > 200 ? err.substring(0, 200) + "..." : err}')),
       );
       return;
     }

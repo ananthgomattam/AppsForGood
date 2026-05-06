@@ -1,6 +1,7 @@
+import 'dart:convert';
+
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class WeatherSnapshot {
   final double? temperature;
@@ -44,66 +45,143 @@ class WeatherSnapshot {
 }
 
 class WeatherService {
-  Future<WeatherSnapshot> getWeather() async {
-    try {
-      // Check if location services are enabled on the device
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        return WeatherSnapshot.unavailable();
-      }
+  String _formatDate(DateTime date) {
+    final yyyy = date.year.toString().padLeft(4, '0');
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '$yyyy-$mm-$dd';
+  }
 
-      // Check and request permission
-      LocationPermission permission = await Geolocator.checkPermission();
+  Future<Position?> _getPosition() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return null;
+    }
 
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          return WeatherSnapshot.unavailable();
-        }
+        return null;
       }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      return null;
+    }
 
-      if (permission == LocationPermission.deniedForever) {
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.low,
+    ).timeout(const Duration(seconds: 6));
+  }
+
+  WeatherSnapshot _snapshotFromHourly(Map<String, dynamic> data, DateTime targetTime) {
+    final hourly = data['hourly'];
+    if (hourly is! Map<String, dynamic>) {
+      return WeatherSnapshot.unavailable();
+    }
+
+    final times = hourly['time'];
+    if (times is! List || times.isEmpty) {
+      return WeatherSnapshot.unavailable();
+    }
+
+    var closestIndex = -1;
+    Duration? closestDelta;
+
+    for (var i = 0; i < times.length; i++) {
+      final raw = times[i];
+      if (raw is! String) continue;
+      final parsed = DateTime.tryParse(raw);
+      if (parsed == null) continue;
+      final delta = parsed.difference(targetTime).abs();
+      if (closestDelta == null || delta < closestDelta) {
+        closestDelta = delta;
+        closestIndex = i;
+      }
+    }
+
+    if (closestIndex < 0) {
+      return WeatherSnapshot.unavailable();
+    }
+
+    num? valueAt(String key) {
+      final values = hourly[key];
+      if (values is! List || closestIndex >= values.length) return null;
+      final value = values[closestIndex];
+      return value is num ? value : null;
+    }
+
+    return WeatherSnapshot(
+      temperature: valueAt('temperature_2m')?.toDouble(),
+      pressure: valueAt('surface_pressure')?.toDouble(),
+      humidity: valueAt('relative_humidity_2m')?.toDouble(),
+      weatherCode: valueAt('weather_code')?.toInt(),
+    );
+  }
+
+  Future<WeatherSnapshot> _fetchHourlyWeather({
+    required Uri url,
+    required DateTime targetTime,
+  }) async {
+    final response = await http.get(url).timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) {
+      return WeatherSnapshot.unavailable();
+    }
+
+    final data = jsonDecode(response.body);
+    if (data is! Map<String, dynamic>) {
+      return WeatherSnapshot.unavailable();
+    }
+
+    return _snapshotFromHourly(data, targetTime);
+  }
+
+  Future<WeatherSnapshot> getWeather() async {
+    return getWeatherAt(DateTime.now());
+  }
+
+  Future<WeatherSnapshot> getWeatherAt(DateTime targetDateTime) async {
+    try {
+      final position = await _getPosition();
+      if (position == null) {
         return WeatherSnapshot.unavailable();
       }
 
-      // Permission granted — get current position
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-      ).timeout(const Duration(seconds: 6));
+      final date = _formatDate(targetDateTime);
 
-      // Build Open-Meteo URL with current coordinates
-      final url = Uri.parse(
+      final forecastUrl = Uri.parse(
         'https://api.open-meteo.com/v1/forecast'
         '?latitude=${position.latitude}'
         '&longitude=${position.longitude}'
-        '&current=temperature_2m,surface_pressure,relative_humidity_2m,weather_code',
+        '&hourly=temperature_2m,surface_pressure,relative_humidity_2m,weather_code'
+        '&start_date=$date'
+        '&end_date=$date'
+        '&timezone=auto',
       );
 
-      // Make the API call
-      final response = await http.get(url).timeout(const Duration(seconds: 8));
-
-      // If API call failed return nulls — don't crash the app
-      if (response.statusCode != 200) {
-        return WeatherSnapshot.unavailable();
+      final forecastSnapshot = await _fetchHourlyWeather(
+        url: forecastUrl,
+        targetTime: targetDateTime,
+      );
+      if (forecastSnapshot.hasData) {
+        return forecastSnapshot;
       }
 
-      // Parse the JSON response
-      final data = jsonDecode(response.body);
-      final current = data['current'];
-
-      if (current is! Map<String, dynamic>) {
-        return WeatherSnapshot.unavailable();
-      }
-
-      return WeatherSnapshot(
-        temperature: (current['temperature_2m'] as num?)?.toDouble(),
-        pressure: (current['surface_pressure'] as num?)?.toDouble(),
-        humidity: (current['relative_humidity_2m'] as num?)?.toDouble(),
-        weatherCode: (current['weather_code'] as num?)?.toInt(),
+      final archiveUrl = Uri.parse(
+        'https://archive-api.open-meteo.com/v1/archive'
+        '?latitude=${position.latitude}'
+        '&longitude=${position.longitude}'
+        '&hourly=temperature_2m,surface_pressure,relative_humidity_2m,weather_code'
+        '&start_date=$date'
+        '&end_date=$date'
+        '&timezone=auto',
       );
 
-    } catch (e) {
-      // Any unexpected error: return nulls, log still saves without weather
+      return await _fetchHourlyWeather(
+        url: archiveUrl,
+        targetTime: targetDateTime,
+      );
+    } catch (_) {
       return WeatherSnapshot.unavailable();
     }
   }

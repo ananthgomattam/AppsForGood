@@ -47,7 +47,7 @@ class DatabaseHelper {
     final path = join(dbPath, filePath);
     return await openDatabase(
       path,
-      version: 2,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -66,89 +66,19 @@ class DatabaseHelper {
         await db.execute('ALTER TABLE daily_log ADD COLUMN username TEXT NOT NULL DEFAULT "unknown"');
       } catch (_) {}
     }
-  }
-
-  Future<void> _ensureTables(Database db) async {
-    await db.execute('''
-    CREATE TABLE IF NOT EXISTS profile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      dateOfBirth TEXT NOT NULL,
-      gender TEXT,
-      diagnosisType TEXT,
-      diagnosisDate TEXT,
-      doctorName TEXT,
-      doctorPhone TEXT,
-      hospitalPreference TEXT,
-      emergencyContactName TEXT,
-      emergencyContactPhone TEXT,
-      emergencyContactRelation TEXT,
-      dailyLogRemainderHour INTEGER NOT NULL,
-      dailyLogRemainderMinute INTEGER NOT NULL,
-      seizureNotifications INTEGER NOT NULL,
-      createdAt TEXT NOT NULL
-    )
-    ''');
-
-    await db.execute('''
-    CREATE TABLE IF NOT EXISTS medication (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      dosage TEXT NOT NULL,
-      frequencyCount INTEGER NOT NULL,
-      frequencyUnit TEXT NOT NULL,
-      timesList TEXT NOT NULL,
-      startDate TEXT NOT NULL,
-      endDate TEXT,
-      notes TEXT,
-      createdAt TEXT NOT NULL
-    )
-    ''');
-
-    await db.execute('''
-    CREATE TABLE IF NOT EXISTS daily_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL,
-      medicationAdherence INTEGER NOT NULL,
-      sleepHours REAL NOT NULL,
-      sleepQuality INTEGER NOT NULL,
-      sleepInterruptions INTEGER NOT NULL,
-      stressLevel INTEGER NOT NULL,
-      dietQuality INTEGER NOT NULL,
-      drugUse INTEGER NOT NULL,
-      hormonalChanges INTEGER,
-      createdAt TEXT NOT NULL,
-      temperature REAL,
-      pressure REAL,
-      humidity REAL,
-      notes TEXT
-    )
-    ''');
-
-    await db.execute('''
-    CREATE TABLE IF NOT EXISTS seizure_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL,
-      timeOfDay TEXT NOT NULL,
-      durationSeconds INTEGER NOT NULL,
-      seizureType TEXT NOT NULL,
-      symptoms TEXT,
-      mood INTEGER NOT NULL,
-      notes TEXT,
-      createdAt TEXT NOT NULL,
-      medicationAdherence INTEGER NOT NULL,
-      sleepHours REAL NOT NULL,
-      sleepQuality INTEGER NOT NULL,
-      sleepInterruptions INTEGER NOT NULL,
-      stressLevel INTEGER NOT NULL,
-      dietQuality INTEGER NOT NULL,
-      drugUse INTEGER NOT NULL,
-      hormonalChanges INTEGER,
-      temperature REAL,
-      pressure REAL,
-      humidity REAL
-    )
-    ''');
+    if (oldVersion < 3) {
+      try {
+        await db.execute('ALTER TABLE seizure_log ADD COLUMN username TEXT NOT NULL DEFAULT "unknown"');
+      } catch (_) {}
+    }
+    if (oldVersion < 4) {
+      try {
+        await db.execute('ALTER TABLE daily_log ADD COLUMN isSeizure INTEGER NOT NULL DEFAULT 0');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE seizure_log ADD COLUMN isSeizure INTEGER NOT NULL DEFAULT 1');
+      } catch (_) {}
+    }
   }
 
   // Create the database tables for each of the data files
@@ -198,6 +128,7 @@ class DatabaseHelper {
       username TEXT NOT NULL,
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
+      isSeizure INTEGER NOT NULL DEFAULT 0,
       medicationAdherence INTEGER NOT NULL,
       sleepHours REAL NOT NULL,
       sleepQuality INTEGER NOT NULL,
@@ -217,6 +148,7 @@ class DatabaseHelper {
     batch.execute('''
     CREATE TABLE seizure_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
       date TEXT NOT NULL,
       timeOfDay TEXT NOT NULL,
       durationSeconds INTEGER NOT NULL,
@@ -225,6 +157,7 @@ class DatabaseHelper {
       mood INTEGER NOT NULL,
       notes TEXT,
       createdAt TEXT NOT NULL,
+      isSeizure INTEGER NOT NULL DEFAULT 1,
       medicationAdherence INTEGER NOT NULL,
       sleepHours REAL NOT NULL,
       sleepQuality INTEGER NOT NULL,
@@ -377,19 +310,29 @@ class DatabaseHelper {
     return await db.delete('daily_log', where: 'id = ?', whereArgs: [id]);
   }
 
+  // Delete a daily log by date for current user
+  Future<int> deleteDailyLogByDate(String date) async {
+    final db = await instance.database;
+    final username = await _getCurrentUsername();
+    return await db.delete('daily_log', where: 'username = ? AND date = ?', whereArgs: [username, date]);
+  }
+
   // CRUD operations for seizure log
 
   // Insert a new seizure log
   Future<int> insertSeizureLog(SeizureLog log) async {
     final db = await instance.database;
     final map = log.toMap();
+    final username = await _getCurrentUsername();
+    map['username'] = username;
     return await db.insert('seizure_log', map);
   }
 
   // Get all seizure logs
   Future<List<SeizureLog>> getAllSeizureLogs() async {
     final db = await instance.database;
-    final results = await db.query('seizure_log');
+    final username = await _getCurrentUsername();
+    final results = await db.query('seizure_log', where: 'username = ?', whereArgs: [username]);
     final logs = <SeizureLog>[];
     for (final row in results) {
       try {
@@ -404,10 +347,11 @@ class DatabaseHelper {
   // Get all seizure logs for a specific date
   Future<List<SeizureLog>> getSeizureLogsByDate(String date) async {
     final db = await instance.database;
+    final username = await _getCurrentUsername();
     final results = await db.query(
       'seizure_log',
-      where: 'date = ?',
-      whereArgs: [date],
+      where: 'username = ? AND date = ?',
+      whereArgs: [username, date],
     );
     return results.map((row) => SeizureLog.fromMap(row)).toList();
   }
@@ -427,6 +371,14 @@ class DatabaseHelper {
   Future<int> deleteSeizureLog(int id) async {
     final db = await instance.database;
     return await db.delete('seizure_log', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteUserData(String username) async {
+    final db = await instance.database;
+    await db.delete('profile', where: 'username = ?', whereArgs: [username]);
+    await db.delete('medication', where: 'username = ?', whereArgs: [username]);
+    await db.delete('daily_log', where: 'username = ?', whereArgs: [username]);
+    await db.delete('seizure_log', where: 'username = ?', whereArgs: [username]);
   }
 
 
