@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/daily_log.dart';
 import '../database/database_helper.dart';
@@ -478,7 +479,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Support Resources', style: Theme.of(context).textTheme.titleMedium),
+                  GestureDetector(
+                    onTap: () async {
+                      final url = Uri.parse('https://www.epilepsy.com/');
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(url);
+                      }
+                    },
+                    child: Text(
+                      'Support Resources',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   const _ResourceRow(
                     icon: Icons.school_outlined,
@@ -486,10 +501,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     subtitle: 'Learn about seizure patterns and prevention habits.',
                   ),
                   const SizedBox(height: 8),
-                  const _ResourceRow(
+                  _ResourceRow(
                     icon: Icons.groups_2_outlined,
                     title: 'Community & Care Teams',
                     subtitle: 'Keep your support network and emergency contacts ready.',
+                    onTap: () async {
+                      final url = Uri.parse('https://epilepsyallianceamerica.org/programs-services/support-groups/');
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(url);
+                      }
+                    },
                   ),
                 ],
               ),
@@ -678,11 +699,13 @@ class _ResourceRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final VoidCallback? onTap;
 
   const _ResourceRow({
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.onTap,
   });
 
   @override
@@ -703,7 +726,18 @@ class _ResourceRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleSmall),
+              onTap != null
+                  ? GestureDetector(
+                      onTap: onTap,
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    )
+                  : Text(title, style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 2),
               Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
             ],
