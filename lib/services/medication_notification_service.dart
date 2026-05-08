@@ -1,3 +1,7 @@
+// This class was created with the help of Claude 4.6. It was prompted multiple times to ask how to integrate notifications
+// into a Flutter app, and the final implementation was based on the suggestions provided by Claude. 
+// The code was then adapted to fit the specific needs of the ForSeizure app, such as syncing medication reminders from the database and handling platform-specific initialization.
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -12,6 +16,8 @@ class MedicationNotificationService {
   static final MedicationNotificationService instance =
       MedicationNotificationService._();
 
+// Constants for the notification channel used for medication reminders, and the FlutterLocalNotificationsPlugin instance. 
+// Also tracks whether the service has been initialized to avoid redundant initialization.
   static const String _channelId = 'medication_reminders';
   static const String _channelName = 'Medication Reminders';
   static const String _channelDescription =
@@ -22,6 +28,8 @@ class MedicationNotificationService {
 
   bool _initialized = false;
 
+  // Initialize the notification service by setting up the FlutterLocalNotificationsPlugin with the appropriate settings for Android and iOS, initializing time zones, and requesting necessary permissions.
+  // This is only done once and is skipped on web and Windows platforms where notifications are not supported.
   Future<void> initialize() async {
     if (_initialized || kIsWeb || defaultTargetPlatform == TargetPlatform.windows) {
       return;
@@ -58,6 +66,8 @@ class MedicationNotificationService {
     _initialized = true;
   }
 
+  // Sync medication reminders by first ensuring the service is initialized, then canceling any existing medication reminders, 
+  // fetching all medications from the database, and scheduling new reminders for each medication based on their specified times and dates.
   Future<void> syncMedicationReminders() async {
     if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows) return;
 
@@ -73,6 +83,7 @@ class MedicationNotificationService {
     }
   }
 
+  // Cancel medication reminders
   Future<void> _cancelMedicationRemindersOnly() async {
     final pending = await _plugin.pendingNotificationRequests();
     for (final request in pending) {
@@ -82,6 +93,7 @@ class MedicationNotificationService {
     }
   }
 
+  // Schedule notifications for a given medication
   Future<void> _scheduleMedication(Medication medication) async {
     final int? medicationId = medication.id;
     if (medicationId == null) return;

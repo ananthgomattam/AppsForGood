@@ -16,6 +16,7 @@ import 'screens/triggers_screen.dart';
 import 'screens/med_info_screen.dart';
 import 'services/medication_notification_service.dart';
 
+// The main entry point of the app. It initializes the database for desktop platforms, sets up medication notifications, and runs the app with the defined routes and theme.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 

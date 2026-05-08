@@ -19,11 +19,14 @@ class PredictionResult {
 class PredictionService {
   final TriggerService _triggerService = TriggerService();
 
+  
   Future<PredictionResult> predict(DailyLog today) async {
+    // Load all necessary data for the prediction, including trigger analysis results, daily logs, and seizure logs.
     final triggers = await _triggerService.analyzeTriggers();
     final allDailyLogs = await DatabaseHelper.instance.getAllDailyLogs();
     final allSeizureLogs = await DatabaseHelper.instance.getAllSeizureLogs();
 
+    // If there are fewer than 7 daily logs, return an "Insufficient Data" result to encourage the user to log more days before a prediction can be made.
     if (allDailyLogs.length < 7) {
       return PredictionResult(
         riskScore: 0,
@@ -32,7 +35,8 @@ class PredictionService {
         explanation: 'Log at least 7 days to unlock your first prediction',
       );
     }
-
+    
+    // Sort the daily logs by date to ensure we can analyze recent trends and calculate averages for the prediction.
     final sortedLogs = [...allDailyLogs]
       ..sort((a, b) => a.date.compareTo(b.date));
 
@@ -40,6 +44,8 @@ class PredictionService {
     double totalTriggerWeight = 0.0;
     final activeTriggers = <String>[];
 
+    // For each identified trigger, calculate its contribution to the overall risk score based on today's value for that factor, the average values for seizure and normal days, and the weight of the trigger. 
+    // If the contribution is significant (greater than 0.1), add it to the list of active triggers for today's prediction. 
     for (final trigger in triggers) {
       if (!trigger.isTrigger || trigger.weight == 0.0) continue;
       
@@ -59,15 +65,18 @@ class PredictionService {
       totalTriggerWeight += trigger.weight;
     }
 
+    // Calculate the overall trigger risk as a weighted average of the contributions from each active trigger, ensuring it is between 0 and 1.
     final triggerRisk = totalTriggerWeight > 0
         ? (totalTriggerRisk / totalTriggerWeight).clamp(0.0, 1.0)
         : 0.0;
 
+    // Analyze recent trends in the user's daily logs to calculate a rolling risk score based on factors like sleep, stress, and medication adherence.
     final beforeToday = sortedLogs
         .where((log) => log.date.compareTo(today.date) < 0)
         .toList();
     final recentLogs = beforeToday.reversed.take(7).toList();
 
+    // Placeholder values for averages and rolling risk
     double averageSleepHours = 7.0;
     double averageStressLevel = 5.0;
     double rollingRisk = 0.0;
@@ -76,6 +85,7 @@ class PredictionService {
       double totalSleep = 0.0;
       double totalStress = 0.0;
       
+      // Calculate average sleep hours and stress level from recent logs, and count missed medication days to contribute to the rolling risk score based on predefined thresholds.
       for (final log in recentLogs) {
         totalSleep += log.sleepHours;
         totalStress += log.stressLevel.toDouble();
@@ -88,6 +98,7 @@ class PredictionService {
           .where((log) => !log.medicationAdherence)
           .length;
 
+      // Increase rolling risk based on thresholds for sleep, stress, and medication adherence. The more severe the factor, the higher the increase in risk.
       if (averageSleepHours < 6.0) rollingRisk += 0.15;
       if (averageSleepHours < 5.0) rollingRisk += 0.10;
       if (averageStressLevel > 7.0) rollingRisk += 0.15;
@@ -96,12 +107,14 @@ class PredictionService {
       if (missedMedicationCount >= 4) rollingRisk += 0.15;
     }
 
+    // Ensure the rolling risk is between 0 and 1 after applying all factors.
     rollingRisk = rollingRisk.clamp(0.0, 1.0);
 
     final allSeizuresBeforeToday = allSeizureLogs
         .where((log) => log.date.compareTo(today.date) < 0)
         .toList();
 
+    // Analyze seizure history to calculate a seizure history risk score based on the number of seizures in the past 30 days and how recently the last seizure occurred.
     double seizureHistoryRisk = 0.0;
     final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
     
@@ -113,6 +126,7 @@ class PredictionService {
       }
     }
 
+    // Increase seizure history risk based on thresholds for recent seizure count and how recently the last seizure occurred. The more recent and frequent the seizures, the higher the increase in risk.
     if (recentSeizureCount >= 1) seizureHistoryRisk += 0.10;
     if (recentSeizureCount >= 3) seizureHistoryRisk += 0.10;
     if (recentSeizureCount >= 5) seizureHistoryRisk += 0.10;
@@ -141,6 +155,7 @@ class PredictionService {
 
     final medicationPenalty = medicationStreak < 3 ? 0.2 : 0.0;
     
+    // Combine the trigger risk, rolling risk, seizure history risk, and medication penalty into an overall risk score using weighted contributions.
     double combinedRisk =
         (triggerRisk * 0.35) +
         (rollingRisk * 0.30) +
@@ -154,6 +169,7 @@ class PredictionService {
       activeTriggers: activeTriggers,
     );
 
+    // Apply interaction effects to the combined risk score, which can increase the risk if certain high-risk combinations of factors are present (e.g., poor sleep combined with high stress).
     combinedRisk = (combinedRisk * interactionMultiplier).clamp(0.0, 1.0);
 
     final riskScore = (combinedRisk * 100).roundToDouble();
@@ -166,6 +182,8 @@ class PredictionService {
     } else {
       riskLevel = 'High';
     }
+
+    // Build an explanation string that summarizes the key factors contributing to today's risk score, including any active triggers and significant trends in sleep, stress, medication adherence, and seizure history.
 
     final factors = <String>[];
     
@@ -216,6 +234,8 @@ class PredictionService {
     );
   }
 
+  // Calculate interaction effects between different factors to adjust the overall risk score. 
+  // For example, if the user has both poor sleep and high stress, the multiplier increases significantly to reflect the compounded risk.
   double _calculateInteractionEffects({
     required DailyLog today,
     required List<DailyLog> recentLogs,
@@ -260,6 +280,9 @@ class PredictionService {
     return multiplier;
   }
 
+  // Calculate the contribution of a specific trigger to the overall risk score based on today's value for that factor, the average values for seizure and normal days, and the weight of the trigger.
+  // For weather-related factors, the contribution is based on how much today's value deviates from the normal average. 
+  // For other factors, the contribution is based on whether today's value is moving in a direction that increases risk compared to the normal average.
   double _calculateTriggerContribution({
     required double todayValue,
     required TriggerResult trigger,

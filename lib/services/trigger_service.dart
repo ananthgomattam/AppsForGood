@@ -132,7 +132,9 @@ class TriggerService {
     return sumSquares / (values.length - 1);
   }
 
-
+  // Analyze a specific factor to determine if it is a potential trigger based on the average values for seizure and normal days, the difference between those averages, and whether there is enough data to perform a t-test.
+  // If there is not enough data, it uses a simple threshold comparison to classify the factor as a trigger or not.
+  // If there is enough data, it performs Welch's t-test to determine if the difference is statistically significant, and calculates a weight for the trigger based on the difference relative to the standard deviation of the seizure days.
   TriggerResult _analyzeFactor({
     required String name,
     required List<DailyLog> seizureDays,
@@ -204,7 +206,9 @@ class TriggerService {
     );
   }
 
-
+  // Analyze weather-related factors (temperature, pressure, humidity) as potential triggers by comparing the value on seizure days to a window of nearby normal days.
+  // It calculates the average deviation of the seizure day value from the nearby normal days, and classifies it as a trigger if the average deviation exceeds a specified threshold. 
+  // This method is used because weather factors can have more complex relationships with seizures that may not be captured by a simple t-test.
   TriggerResult _analyzeWeatherFactor({
     required String name,
     required List<SeizureLog> seizureLogs,
