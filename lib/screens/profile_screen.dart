@@ -55,12 +55,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String message,
     required String confirmLabel,
   }) async {
-    final controller = TextEditingController();
-    bool hidePassword = true;
-
-    final password = await showDialog<String>(
+    return showDialog<String>(
       context: context,
       builder: (context) {
+        final controller = TextEditingController();
+        bool hidePassword = true;
+
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -103,9 +103,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
-
-    controller.dispose();
-    return password;
   }
 
   Future<void> _switchToUser(FrontendAccount account) async {
@@ -247,8 +244,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await DatabaseHelper.instance.updateProfile(updated);
     }
 
-    // Save preference for login page handled on the login screen now.
-
     final refreshed = await DatabaseHelper.instance.getProfile();
     if (!mounted) return;
 
@@ -312,7 +307,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         runSpacing: 8,
                         children: _accounts
                             .where((account) => account.username != _user)
-                              .map(
+                            .map(
                               (account) => ActionChip(
                                 avatar: const Icon(Icons.person_outline, size: 16),
                                 label: Text(account.username),
@@ -351,7 +346,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            
             const SizedBox(height: 12),
             Card(
               child: SwitchListTile(
