@@ -373,6 +373,7 @@ class DatabaseHelper {
     return await db.delete('seizure_log', where: 'id = ?', whereArgs: [id]);
   }
 
+  // Delete all data for a user when they delete their account
   Future<void> deleteUserData(String username) async {
     final db = await instance.database;
     await db.delete('profile', where: 'username = ?', whereArgs: [username]);
@@ -381,7 +382,7 @@ class DatabaseHelper {
     await db.delete('seizure_log', where: 'username = ?', whereArgs: [username]);
   }
 
-
+  // Close the database when the app is closed or user logs out
   Future close() async {
     final db = await instance.database;
     db.close();

@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+// Class that displays a gauge representing the user's current seizure risk based on a safety score. 
+//  The gauge is a semicircle that fills up based on the safety score, with different colors and labels indicating low, moderate, or high risk.
 class RiskGauge extends StatelessWidget {
   final double safetyScore;
 

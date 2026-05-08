@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+// Colors and theme data for the app, defining a consistent visual style with a purple color palette, custom text styles, card styles, input decoration styles, and button styles
 class AppTheme {
 	static const Color deepPurplePrimary = Color(0xFF522583);
 	static const Color vibrantViolet = Color(0xFF9D00FF);

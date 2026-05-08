@@ -14,12 +14,14 @@ class FrontendAccount {
   final String passwordHash;
   final String createdAt;
 
+  // Create a new account with the given username and password hash, and the current timestamp as the creation time
   const FrontendAccount({
     required this.username,
     required this.passwordHash,
     required this.createdAt,
   });
 
+  // Get a FrontendAccount
   factory FrontendAccount.fromMap(Map<String, dynamic> map) {
     return FrontendAccount(
       username: (map['username'] ?? '') as String,
@@ -28,6 +30,7 @@ class FrontendAccount {
     );
   }
 
+  // Convert the FrontendAccount to a map for storage
   Map<String, dynamic> toMap() {
     return {
       'username': username,
@@ -37,6 +40,7 @@ class FrontendAccount {
   }
 }
 
+// Authorization attempt
 class AccountAuthResult {
   final bool success;
   final String? message;
@@ -44,6 +48,7 @@ class AccountAuthResult {
   const AccountAuthResult({required this.success, this.message});
 }
 
+// Account deletion attempt
 class AccountDeletionResult {
   final bool success;
   final String? message;
@@ -56,17 +61,20 @@ class AccountDeletionResult {
   });
 }
 
+// Manages user accounts, including sign up, sign in, sign out, and account deletion.
 class FrontendAccountStore {
   FrontendAccountStore._();
 
   static final FrontendAccountStore instance = FrontendAccountStore._();
 
   static const String _accountsKey = 'frontend_accounts_v1';
-  static const String _savedLoginAccountsKey = 'frontend_saved_login_accounts_v1';
+  static const String _savedLoginAccountsKey =
+      'frontend_saved_login_accounts_v1';
   static const String _currentUserKey = 'frontend_current_user_v1';
   static const String _favoritePrefix = 'frontend_favorite_meds_';
   static const String _legacyMigratedPrefix = 'frontend_unknown_migrated_v1_';
 
+  // Get all accounts stored on the device
   Future<List<FrontendAccount>> getAccounts() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = prefs.getStringList(_accountsKey) ?? <String>[];
@@ -80,16 +88,19 @@ class FrontendAccountStore {
     return list;
   }
 
+  // Get the currently signed in username, or null if no user is signed in
   Future<String?> getCurrentUsername() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_currentUserKey);
   }
 
+  // Get the list of usernames that are saved for quick login (but not necessarily currently signed in)
   Future<List<String>> getSavedLoginUsernames() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getStringList(_savedLoginAccountsKey) ?? <String>[];
   }
 
+  // Check if a given username is in the list of saved login accounts
   Future<bool> isSavedForLogin(String username) async {
     final normalized = username.trim().toLowerCase();
     if (normalized.isEmpty) {
@@ -100,6 +111,7 @@ class FrontendAccountStore {
     return saved.contains(normalized);
   }
 
+  // Add a username to the list of saved login accounts, if it's not already there
   Future<void> saveProfileForLogin(String username) async {
     final normalized = username.trim().toLowerCase();
     if (normalized.isEmpty) {
@@ -116,6 +128,7 @@ class FrontendAccountStore {
     await prefs.setStringList(_savedLoginAccountsKey, saved);
   }
 
+  // Remove a username from the list of saved login accounts, if it exists
   Future<void> removeProfileFromLogin(String username) async {
     final normalized = username.trim().toLowerCase();
     if (normalized.isEmpty) {
@@ -132,19 +145,28 @@ class FrontendAccountStore {
     await prefs.setStringList(_savedLoginAccountsKey, saved);
   }
 
+  // Sign up for a new account with the given username and password. Returns an AccountAuthResult indicating success or failure and an optional message.
   Future<AccountAuthResult> signUp({
     required String username,
     required String password,
   }) async {
     final normalized = username.trim().toLowerCase();
     if (normalized.isEmpty || password.isEmpty) {
-      return const AccountAuthResult(success: false, message: 'Username and password are required.');
+      return const AccountAuthResult(
+        success: false,
+        message: 'Username and password are required.',
+      );
     }
 
     final existing = await getAccounts();
-    final alreadyExists = existing.any((account) => account.username == normalized);
+    final alreadyExists = existing.any(
+      (account) => account.username == normalized,
+    );
     if (alreadyExists) {
-      return const AccountAuthResult(success: false, message: 'That username already exists.');
+      return const AccountAuthResult(
+        success: false,
+        message: 'That username already exists.',
+      );
     }
 
     final account = FrontendAccount(
@@ -166,6 +188,7 @@ class FrontendAccountStore {
     return const AccountAuthResult(success: true);
   }
 
+  // Sign in to an existing account with the given username and password. Returns an AccountAuthResult indicating success or failure and an optional message.
   Future<AccountAuthResult> signIn({
     required String username,
     required String password,
@@ -181,14 +204,23 @@ class FrontendAccountStore {
       }
     }
 
+    // If no account was found with the given username, return an error
     if (account == null) {
-      return const AccountAuthResult(success: false, message: 'Account not found.');
+      return const AccountAuthResult(
+        success: false,
+        message: 'Account not found.',
+      );
     }
 
+    // If the password hash of the found account does not match the hash of the provided password, return an error
     if (account.passwordHash != _hashPassword(password)) {
-      return const AccountAuthResult(success: false, message: 'Incorrect password.');
+      return const AccountAuthResult(
+        success: false,
+        message: 'Incorrect password.',
+      );
     }
 
+    // If we reach this point, the username and password are correct. Set the current user in shared preferences and the database, and return success.
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_currentUserKey, normalized);
 
@@ -199,6 +231,7 @@ class FrontendAccountStore {
     return const AccountAuthResult(success: true);
   }
 
+  // Sign out the current user by removing the current user key from shared preferences and clearing the current user in the database
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_currentUserKey);
@@ -207,6 +240,7 @@ class FrontendAccountStore {
     await DatabaseHelper.clearCurrentUser();
   }
 
+  // Delete an existing account with the given username and password. Returns an AccountDeletionResult indicating success or failure, an optional message, and whether the deleted account was the currently signed in user.
   Future<AccountDeletionResult> deleteAccount({
     required String username,
     required String password,
@@ -228,22 +262,39 @@ class FrontendAccountStore {
       }
     }
 
+    // If no account was found with the given username, return an error
     if (account == null) {
-      return const AccountDeletionResult(success: false, message: 'Account not found.');
+      return const AccountDeletionResult(
+        success: false,
+        message: 'Account not found.',
+      );
     }
 
+    // If the password hash of the found account does not match the hash of the provided password, return an error
     if (account.passwordHash != _hashPassword(password)) {
-      return const AccountDeletionResult(success: false, message: 'Incorrect password.');
+      return const AccountDeletionResult(
+        success: false,
+        message: 'Incorrect password.',
+      );
     }
 
+    // If we reach this point, the username and password are correct. Remove the account from the list of accounts, delete all associated data from the database, remove from saved login if needed, and if this was the currently signed in user, also sign out.
     final prefs = await SharedPreferences.getInstance();
     await DatabaseHelper.instance.deleteUserData(normalized);
 
-    final updated = existing.where((item) => item.username != normalized).toList();
+    // Remove the account from the list of accounts and save the updated list
+    final updated = existing
+        .where((item) => item.username != normalized)
+        .toList();
     await _writeAccounts(updated);
 
+    // Remove from saved login if needed
     await removeProfileFromLogin(normalized);
+
+    // Remove any favorite medications associated with this user
     await prefs.remove('$_favoritePrefix$normalized');
+
+    // Remove any legacy migration flag for this user
     await prefs.remove('$_legacyMigratedPrefix$normalized');
 
     final currentUser = prefs.getString(_currentUserKey);
@@ -259,6 +310,7 @@ class FrontendAccountStore {
     );
   }
 
+  // Set the current user to the given username. This is used when switching accounts without signing out, such as from a profile screen. It updates the current user in shared preferences and the database, and migrates any legacy "unknown" data if needed.
   Future<void> setCurrentUser(String username) async {
     final normalized = username.trim().toLowerCase();
     if (normalized.isEmpty) {
@@ -279,6 +331,7 @@ class FrontendAccountStore {
     await _migrateLegacyUnknownDataIfNeeded(normalized);
   }
 
+  // If the user is switching to a new account and there is legacy data under the "unknown" user, migrate that data to the new account. This only happens once per account, and only if the new account doesn't already have any data (to avoid overwriting any existing data).
   Future<void> _migrateLegacyUnknownDataIfNeeded(String username) async {
     if (username.isEmpty || username == 'unknown') {
       return;
@@ -296,7 +349,8 @@ class FrontendAccountStore {
     final existingMeds = await DatabaseHelper.instance.getAllMedications();
     final existingDaily = await DatabaseHelper.instance.getAllDailyLogs();
     final existingSeizures = await DatabaseHelper.instance.getAllSeizureLogs();
-    final alreadyHasData = existingProfile != null ||
+    final alreadyHasData =
+        existingProfile != null ||
         existingMeds.isNotEmpty ||
         existingDaily.isNotEmpty ||
         existingSeizures.isNotEmpty;
@@ -417,6 +471,7 @@ class FrontendAccountStore {
     await prefs.setBool(migrationKey, true);
   }
 
+  // Get the list of favorite medication names for the given username (or current user if username is null). This is stored in shared preferences under a key specific to the user.
   Future<List<String>> getFavoriteMedications({String? username}) async {
     final effectiveUser = username ?? await getCurrentUsername();
     if (effectiveUser == null || effectiveUser.isEmpty) {
@@ -427,6 +482,7 @@ class FrontendAccountStore {
     return prefs.getStringList('$_favoritePrefix$effectiveUser') ?? <String>[];
   }
 
+  // Toggle whether a given medication name is in the list of favorites for the given username
   Future<void> toggleFavoriteMedication(String medicationName) async {
     final currentUser = await getCurrentUsername();
     if (currentUser == null || currentUser.isEmpty) {
@@ -446,6 +502,7 @@ class FrontendAccountStore {
     await prefs.setStringList(key, favorites);
   }
 
+  // Write the given list of accounts to shared preferences by encoding each account as a JSON string and saving the list of strings under the accounts key.
   Future<void> _writeAccounts(List<FrontendAccount> accounts) async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = <String>[];

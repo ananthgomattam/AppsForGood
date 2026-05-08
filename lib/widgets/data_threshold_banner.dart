@@ -8,6 +8,8 @@ class DataThresholdBanner extends StatelessWidget {
   final int minRequired;
   final bool forTTest;
 
+  // A banner that shows how many more seizure and normal days need to be logged before insights can be unlocked. 
+  // If forTTest is true, the threshold is 10 days instead of the default minRequired (which is 2 by default).
   const DataThresholdBanner({
     super.key,
     required this.seizureDaysLogged,
@@ -25,6 +27,7 @@ class DataThresholdBanner extends StatelessWidget {
 
     if (ready) return const SizedBox.shrink();
 
+    // Build the message based on whether this is for T-Test insights or general insights, and how many seizure and normal days are remaining to meet the threshold.
     var message = '';
     if (forTTest) {
       message = 'Keep logging to unlock verified trigger insights. ';

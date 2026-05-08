@@ -7,6 +7,9 @@ class TriggerCard extends StatelessWidget {
 
   const TriggerCard({super.key, required this.trigger});
 
+
+// A card that displays information about a potential trigger, including its name, whether it's currently classified as a trigger, the average values for seizure and normal days, the difference between those averages, and the method used to determine it. 
+// If the method is based on limited data rather than a t-test, it also shows a message encouraging the user to keep logging for more confidence.
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -62,6 +65,7 @@ class TriggerCard extends StatelessWidget {
   }
 }
 
+// A small chip widget that displays a label and a value, used in the TriggerCard to show the seizure average, normal average, and difference.
 class _StatChip extends StatelessWidget {
   final String label;
   final String value;

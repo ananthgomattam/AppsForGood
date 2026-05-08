@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
+// Represents a snapshot of weather conditions at a specific time.
+// All fields are nullable to indicate unavailable data.
+// weatherCode is based on WMO Weather interpretation codes.
 class WeatherSnapshot {
   final double? temperature;
   final double? pressure;
@@ -16,6 +19,7 @@ class WeatherSnapshot {
     required this.weatherCode,
   });
 
+  // Factory constructor for when weather data is unavailable.
   factory WeatherSnapshot.unavailable() {
     return const WeatherSnapshot(
       temperature: null,
@@ -25,8 +29,10 @@ class WeatherSnapshot {
     );
   }
 
+  // Returns true if at least temperature data is available.
   bool get hasData => temperature != null;
 
+  // Converts WMO weather code to human-readable condition label.
   String get conditionLabel {
     final code = weatherCode;
     if (code == null) return 'Unavailable';
@@ -44,7 +50,10 @@ class WeatherSnapshot {
   }
 }
 
+// Service for retrieving weather data from Open-Meteo API.
+// Uses device location to fetch current and historical weather information.
 class WeatherService {
+  // Formats a DateTime to 'YYYY-MM-DD' string format for API requests.
   String _formatDate(DateTime date) {
     final yyyy = date.year.toString().padLeft(4, '0');
     final mm = date.month.toString().padLeft(2, '0');
@@ -52,6 +61,9 @@ class WeatherService {
     return '$yyyy-$mm-$dd';
   }
 
+  // Retrieves the device's current location.
+  // Checks if location services are enabled and if permissions are granted.
+  // Returns null if location is unavailable or if the request times out after 6 seconds.
   Future<Position?> _getPosition() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -74,6 +86,8 @@ class WeatherService {
     ).timeout(const Duration(seconds: 6));
   }
 
+  // Extracts weather snapshot from hourly API response data.
+  // Finds the closest hour in the response to the target time and extracts temperature, pressure, humidity, and weather code.
   WeatherSnapshot _snapshotFromHourly(Map<String, dynamic> data, DateTime targetTime) {
     final hourly = data['hourly'];
     if (hourly is! Map<String, dynamic>) {
@@ -85,6 +99,7 @@ class WeatherService {
       return WeatherSnapshot.unavailable();
     }
 
+    // Find the hourly data point closest to the target time.
     var closestIndex = -1;
     Duration? closestDelta;
 
@@ -119,6 +134,8 @@ class WeatherService {
     );
   }
 
+  // Fetches hourly weather data from the specified API URL.
+  // Makes HTTP request with 8-second timeout and extracts snapshot from response.
   Future<WeatherSnapshot> _fetchHourlyWeather({
     required Uri url,
     required DateTime targetTime,
@@ -140,6 +157,8 @@ class WeatherService {
     return getWeatherAt(DateTime.now());
   }
 
+  // Retrieves weather data for a specific date and time.
+  // First attempts to fetch from the forecast API; if no data is available, falls back to the archive API for historical data.
   Future<WeatherSnapshot> getWeatherAt(DateTime targetDateTime) async {
     try {
       final position = await _getPosition();
@@ -149,6 +168,7 @@ class WeatherService {
 
       final date = _formatDate(targetDateTime);
 
+      // Try current forecast API first.
       final forecastUrl = Uri.parse(
         'https://api.open-meteo.com/v1/forecast'
         '?latitude=${position.latitude}'
@@ -167,6 +187,7 @@ class WeatherService {
         return forecastSnapshot;
       }
 
+      // Fallback to archive API for historical data.
       final archiveUrl = Uri.parse(
         'https://archive-api.open-meteo.com/v1/archive'
         '?latitude=${position.latitude}'
