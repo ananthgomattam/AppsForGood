@@ -3,14 +3,15 @@ import 'package:flutter/material.dart';
 import '../data/profile.dart';
 import '../database/database_helper.dart';
 import '../frontend/account_store.dart';
-
+//Copilot: "Explain the key Flutter patterns for implementing an onboarding screen with form validation, date pickers, and database persistence."
+// The OnboardingScreen is a stateful widget that allows users to set up their profile information when they first use the app. It includes fields for the user's name, date of birth, average sleep hours, and a toggle for enabling seizure-risk notifications. The screen validates the input and saves the profile information to the local database. Once the user completes the onboarding process, they are navigated to the dashboard screen.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
-
+// The _OnboardingScreenState class manages the state of the OnboardingScreen. It uses TextEditingControllers to handle user input for the name, date of birth, and average sleep hours. The state also includes a boolean for whether to enable notifications and a loading state for when the profile is being saved. The class includes methods for picking a date of birth using a date picker, validating and saving the profile information to the database, and formatting dates for display.
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -19,7 +20,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   DateTime? _selectedBirth;
   bool _notify = true;
   bool _saving = false;
-
+// The dispose method is overridden to clean up the TextEditingControllers when the widget is removed from the widget tree. This is important to prevent memory leaks and ensure that resources are properly released.
   @override
   void dispose() {
     _nameController.dispose();
@@ -27,14 +28,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _sleepController.dispose();
     super.dispose();
   }
-
+// The _formatDate method takes a DateTime object and formats it into a string in the format "YYYY-MM-DD". This is used to display the selected date of birth in the text field and to store it in the database in a consistent format.
   String _formatDate(DateTime date) {
     final yyyy = date.year.toString().padLeft(4, '0');
     final mm = date.month.toString().padLeft(2, '0');
     final dd = date.day.toString().padLeft(2, '0');
     return '$yyyy-$mm-$dd';
   }
-
+// The _pickBirth method is an asynchronous function that shows a date picker dialog when the user taps on the date of birth field. It allows the user to select a date, and if a date is selected, it updates the _selectedBirth variable and sets the text of the _birthController to the formatted date string. The date picker is configured to allow selection of dates from January 1, 1900, up to the current date.
   Future<void> _pickBirth() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -49,7 +50,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _birthController.text = _formatDate(picked);
     });
   }
-
+// The _save method is responsible for validating the form input and saving the user's profile information to the local database. It first checks if the form is valid, and if not, it returns early. If the form is valid, it sets the _saving state to true to indicate that the save operation is in progress. It then retrieves the current username from the FrontendAccountStore and checks if there is an existing profile in the database. It creates a new Profile object with the input data and either inserts it as a new record or updates the existing record in the database. After saving, it sets _saving back to false and navigates to the dashboard screen.
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -90,7 +91,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() => _saving = false);
     Navigator.pushReplacementNamed(context, '/dashboard');
   }
-
+// The build method constructs the UI for the onboarding screen. It uses a Scaffold with an AppBar and a SingleChildScrollView containing a Form. The form includes TextFormFields for the user's name, date of birth, and average sleep hours, as well as a SwitchListTile for enabling notifications. Each field has validation logic to ensure that the input is valid before allowing the user to save their profile. The save button is disabled while the profile is being saved, and shows a loading indicator during that time.
   @override
   Widget build(BuildContext context) {
     return Scaffold(

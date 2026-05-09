@@ -3,11 +3,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../data/medication.dart';
 import '../database/database_helper.dart';
-
+//Claude: "Explain the key Flutter patterns for building an expandable list screen with nested state tracking, conditional widgets, URL launchers, and local data loading"
+// All information from clevelandclinic.org and drugs.com as of May 8th, 2026.
 // ─────────────────────────────────────────────
 // Data model
 // ─────────────────────────────────────────────
-
+// Learned using: https://docs.flutter.dev/learn
 class _SideEffect {
   final String name;
   final String description;
