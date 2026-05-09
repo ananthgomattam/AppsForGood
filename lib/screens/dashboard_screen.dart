@@ -11,14 +11,15 @@ import '../services/weather_service.dart';
 import '../widgets/risk_gauge.dart';
 
 enum _InsightsTier { locked, safetyOnly, basicTriggers, full }
-
+//Claude - Prompt "Teach me how to create widgets to display data to integrate with backend"
+// Dashboard screen showing insights, weather, and quick actions
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
-
+// Note: This screen has a lot of logic and could be refactored into smaller widgets and services in a larger app, but is kept as one file for simplicity in this context.
 class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver, RouteAware {
   late Future<_DashboardInsights> _future;
   late Future<WeatherSnapshot> _weatherFuture;
@@ -78,7 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _refreshWeather();
     super.didPopNext();
   }
-
+// Core logic to compute insights for the dashboard based on user's data and prediction results.
   Future<_DashboardInsights> _getInsights() async {
     try {
       final daily = await DatabaseHelper.instance.getAllDailyLogs();
@@ -191,13 +192,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       );
     }
   }
-
+// Helper methods to convert risk score to user-friendly labels and colors.
   String _riskLabel(double score) {
     if (score < 0.4) return 'Low';
     if (score < 0.7) return 'Moderate';
     return 'High';
   }
-
+// Helper method to convert risk score to a color for visual display.
   Color _riskColor(double score) {
     if (score < 0.4) return const Color(0xFF2E7D32);
     if (score < 0.7) return const Color(0xFFF9A825);
@@ -550,7 +551,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 }
-
+// Data class to hold insights for the dashboard, including safety score, prediction details, and tier information.
 class _DashboardInsights {
   final bool hasEnoughData;
   final int dailyCount;
@@ -621,7 +622,7 @@ class _DashboardInsights {
     );
   }
 }
-
+// Below are smaller widgets used in the dashboard for displaying metrics, resources, and actions in a consistent style.
 class _MetricCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -660,7 +661,7 @@ class _MetricCard extends StatelessWidget {
     );
   }
 }
-
+// Reusable pill widget for displaying key metrics with a label and value in a compact format.
 class _MetricPill extends StatelessWidget {
   final String label;
   final String value;
@@ -694,7 +695,7 @@ class _MetricPill extends StatelessWidget {
     );
   }
 }
-
+// Widget for displaying a resource link with an icon, title, subtitle, and optional tap action to open a URL.
 class _ResourceRow extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -747,7 +748,7 @@ class _ResourceRow extends StatelessWidget {
     );
   }
 }
-
+// Simple button widget for quick actions on the dashboard, styled consistently across different actions.
 class _ActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;

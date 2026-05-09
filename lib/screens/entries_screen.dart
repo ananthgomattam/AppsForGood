@@ -3,19 +3,19 @@ import 'package:flutter/material.dart';
 import '../data/daily_log.dart';
 import '../data/seizure_log.dart';
 import '../database/database_helper.dart';
-
+// Screen to view, edit, and delete daily and seizure entries. Provides a tabbed interface to switch between daily logs and seizure logs, with options to refresh data and manage individual entries.
 class EntriesScreen extends StatefulWidget {
   const EntriesScreen({super.key});
 
   @override
   State<EntriesScreen> createState() => _EntriesScreenState();
 }
-
+// State class for the EntriesScreen, responsible for loading data from the database, handling user interactions for editing and deleting entries, and building the UI to display the lists of daily and seizure logs.
 class _EntriesScreenState extends State<EntriesScreen> {
   bool _loading = true;
   List<DailyLog> _dailyLogs = const [];
   List<SeizureLog> _seizureLogs = const [];
-
+// Helper method to create a summary string of weather conditions based on available temperature, pressure, and humidity data from the daily log. This is used in the list item subtitles to provide quick weather context for each entry.
   String _weatherSummary({
     required double? temperature,
     required double? pressure,
@@ -37,13 +37,13 @@ class _EntriesScreenState extends State<EntriesScreen> {
     }
     return 'Weather ${parts.join(' | ')}';
   }
-
+// When the screen initializes, it calls the _reload method to load the daily and seizure logs from the database. The _reload method sets the loading state, fetches the data, sorts it appropriately, and then updates the state to display the loaded entries.
   @override
   void initState() {
     super.initState();
     _reload();
   }
-
+// Method to load daily and seizure logs from the database, sort them, and update the state. This is called on initialization and can be triggered by the user via a refresh button in the app bar.
   Future<void> _reload() async {
     setState(() => _loading = true);
     final daily = await DatabaseHelper.instance.getAllDailyLogs();
@@ -65,7 +65,7 @@ class _EntriesScreenState extends State<EntriesScreen> {
       _loading = false;
     });
   }
-
+// Method to confirm deletion of a daily log entry. If the entry is associated with a seizure, it also deletes the related seizure log(s). It shows a confirmation dialog to the user before performing the deletion and provides feedback via a SnackBar after deletion.
   Future<void> _confirmDeleteDaily(DailyLog log) async {
     if (log.id == null) return;
     final confirm = await showDialog<bool>(
@@ -306,7 +306,7 @@ class _EntriesScreenState extends State<EntriesScreen> {
     interruptionsCtrl.dispose();
     notesCtrl.dispose();
   }
-
+// Similar to _editDaily but for seizure logs. Allows editing of seizure-specific fields like time, duration, type, mood, symptoms, and notes. Also ensures that if the date is changed, the associated daily log is updated accordingly.
   Future<void> _editSeizure(SeizureLog log) async {
     final dateCtrl = TextEditingController(text: log.date);
     final timeCtrl = TextEditingController(text: log.timeOfDay);
@@ -443,7 +443,7 @@ class _EntriesScreenState extends State<EntriesScreen> {
     symptomsCtrl.dispose();
     notesCtrl.dispose();
   }
-
+// The build method constructs the UI for the EntriesScreen. It uses a DefaultTabController to create a tabbed interface with two tabs: one for daily logs and one for seizure logs. The app bar includes a refresh button to reload data from the database. Depending on the loading state, it either shows a progress indicator or the tab views with lists of entries.
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -482,7 +482,7 @@ class _EntriesScreenState extends State<EntriesScreen> {
       ),
     );
   }
-
+// Builds the UI for the Daily Logs tab. If there are no daily logs, it shows a message indicating that. Otherwise, it displays a list of daily log entries in cards, showing key information such as date, sleep hours, stress level, medication adherence, and weather summary. Each entry has a popup menu for editing or deleting the entry.
   Widget _buildDailyTab() {
     if (_dailyLogs.isEmpty) {
       return const Center(child: Text('No daily entries yet.'));
@@ -520,7 +520,7 @@ class _EntriesScreenState extends State<EntriesScreen> {
       },
     );
   }
-
+// Builds the UI for the Seizure Logs tab. If there are no seizure logs, it shows a message indicating that. Otherwise, it displays a list of seizure log entries in cards, showing key information such as date, time, seizure type, duration, mood, symptoms, and weather summary. Each entry has a popup menu for editing or deleting the entry.
   Widget _buildSeizureTab() {
     if (_seizureLogs.isEmpty) {
       return const Center(child: Text('No seizure entries yet.'));
