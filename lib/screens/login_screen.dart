@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../frontend/account_store.dart';
-
+// The LoginScreen is the entry point for users to access their accounts. It provides a user-friendly interface for signing in or creating a new account, with form validation and error handling to ensure a smooth authentication process. The screen features a visually appealing design with a gradient background and a card-based layout for the forms, making it easy for users to navigate and interact with the authentication options.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
-
+// The LoginScreen provides a user interface for signing in or creating an account. It includes form validation, error handling, and communicates with the FrontendAccountStore to perform authentication actions. The screen features a tabbed layout for switching between sign-in and account creation forms, and it displays feedback to the user based on the success or failure of their actions.
 class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final _signInFormKey = GlobalKey<FormState>();
@@ -183,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       ),
     );
   }
-
+// The _buildSignInForm method constructs the form for signing in, including fields for username and password, validation logic, and a submit button that triggers the sign-in process. It also includes functionality to toggle password visibility and displays a loading indicator when the sign-in process is in progress.
   Widget _buildSignInForm(BuildContext context) {
     return Form(
       key: _signInFormKey,
@@ -231,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       ),
     );
   }
-
+// The _buildCreateAccountForm method constructs the form for creating a new account, including fields for username, password, and password confirmation, along with validation logic to ensure proper input. It also includes functionality to toggle password visibility and displays a loading indicator when the account creation process is in progress. Additionally, it provides a reminder to users about the importance of remembering their credentials due to the lack of a 'Forgot password' option.
   Widget _buildCreateAccountForm(BuildContext context) {
     return Form(
       key: _createFormKey,
@@ -325,7 +325,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 }
-
+// The _FeatureTag widget is a reusable component that displays a label within a styled container, used to highlight key features of the app on the login screen. It features a semi-transparent background, rounded borders, and a consistent text style to maintain visual cohesion with the overall design of the login screen.
 class _FeatureTag extends StatelessWidget {
   final String label;
 
