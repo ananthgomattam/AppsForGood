@@ -36,6 +36,11 @@ It is designed to help detect potential seizure risk using user input and extern
 ```
 git clone https://github.com/ananthgomattam/AppsForGood.git
 flutter pub get
+flutter devices
+```
+To make sure that the tablet is connected
+
+```
 flutter run
 ```
 
