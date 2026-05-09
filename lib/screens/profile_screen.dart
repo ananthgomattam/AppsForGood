@@ -19,7 +19,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Profile? _profile;
   bool _saving = false;
   String _user = 'Guest';
-  List<FrontendAccount> _accounts = const [];
 
   @override
   void initState() {
@@ -29,12 +28,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUser() async {
     final user = await FrontendAccountStore.instance.getCurrentUsername();
-    final accounts = await FrontendAccountStore.instance.getAccounts();
     final profile = await DatabaseHelper.instance.getProfile();
     if (!mounted) return;
     setState(() {
       _user = user ?? 'Guest';
-      _accounts = accounts;
       _profile = profile;
       if (profile != null) {
         _nameController.text = profile.name;
@@ -106,35 +103,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     controller.dispose();
     return password;
-  }
-
-  Future<void> _switchToUser(FrontendAccount account) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final password = await _promptForPassword(
-      title: 'Switch account',
-      message: 'Enter the password for ${account.username} to switch to this account.',
-      confirmLabel: 'Switch',
-    );
-    if (password == null) return;
-
-    final result = await FrontendAccountStore.instance.signIn(
-      username: account.username,
-      password: password,
-    );
-    if (!mounted) return;
-
-    if (!result.success) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(result.message ?? 'Unable to switch accounts.')),
-      );
-      return;
-    }
-
-    await _loadUser();
-    if (!mounted) return;
-    messenger.showSnackBar(
-      SnackBar(content: Text('Switched to ${account.username}')),
-    );
   }
 
   Future<void> _deleteAccount() async {
@@ -247,8 +215,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await DatabaseHelper.instance.updateProfile(updated);
     }
 
-    // Save preference for login page handled on the login screen now.
-
     final refreshed = await DatabaseHelper.instance.getProfile();
     if (!mounted) return;
 
@@ -297,31 +263,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         TextButton(onPressed: _signOut, child: const Text('Sign out')),
                       ],
                     ),
-                    if (_accounts.length > 1) ...[
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Switch account',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _accounts
-                            .where((account) => account.username != _user)
-                              .map(
-                              (account) => ActionChip(
-                                avatar: const Icon(Icons.person_outline, size: 16),
-                                label: Text(account.username),
-                                onPressed: () => _switchToUser(account),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
                   ],
                 ),
               ),

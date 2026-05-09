@@ -25,14 +25,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _hideSignInPassword = true;
   bool _hideCreatePassword = true;
   bool _hideCreateConfirmPassword = true;
-  List<FrontendAccount> _savedAccounts = const [];
-  bool _saveProfileOnSignIn = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _getAccounts();
   }
 
   @override
@@ -44,16 +41,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     _createPassword.dispose();
     _createConfirmPassword.dispose();
     super.dispose();
-  }
-
-  Future<void> _getAccounts() async {
-    final list = await FrontendAccountStore.instance.getAccounts();
-    final savedUsernames = await FrontendAccountStore.instance.getSavedLoginUsernames();
-    final saved = list.where((account) => savedUsernames.contains(account.username)).toList();
-    if (!mounted) return;
-    setState(() {
-      _savedAccounts = saved;
-    });
   }
 
   Future<void> _signIn() async {
@@ -75,14 +62,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       );
       return;
     }
-
-    // Persist save preference selected on the login page
-    if (_saveProfileOnSignIn) {
-      await FrontendAccountStore.instance.saveProfileForLogin(_signInUsername.text.trim().toLowerCase());
-      await _getAccounts();
-    }
-
-    if (!mounted) return;
 
     Navigator.pushReplacementNamed(context, '/dashboard');
   }
@@ -107,7 +86,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       return;
     }
 
-    await _getAccounts();
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/dashboard');
   }
@@ -181,14 +159,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               ],
                             ),
                             const SizedBox(height: 14),
-                            if (_savedAccounts.isNotEmpty) _KnownAccountsBar(
-                              accounts: _savedAccounts,
-                              onTapAccount: _signInWithSavedAccount,
-                              onRemoveAccount: (username) async {
-                                await FrontendAccountStore.instance.removeProfileFromLogin(username);
-                                await _getAccounts();
-                              },
-                            ),
                             SizedBox(
                               height: 332,
                               child: TabBarView(
@@ -212,82 +182,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         ),
       ),
     );
-  }
-
-  Future<String?> _promptPassword(String username) async {
-    final controller = TextEditingController();
-    bool hidePassword = true;
-
-    final password = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text('Sign in as $username'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Enter the password for $username to continue.'),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: controller,
-                    obscureText: hidePassword,
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        onPressed: () {
-                          setDialogState(() => hidePassword = !hidePassword);
-                        },
-                        icon: Icon(hidePassword ? Icons.visibility_off : Icons.visibility),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, controller.text),
-                  child: const Text('Sign In'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    controller.dispose();
-    return password;
-  }
-
-  Future<void> _signInWithSavedAccount(String username) async {
-    final password = await _promptPassword(username);
-    if (password == null) return;
-
-    setState(() => _busy = true);
-    final result = await FrontendAccountStore.instance.signIn(
-      username: username,
-      password: password,
-    );
-    if (!mounted) return;
-
-    setState(() => _busy = false);
-    if (!result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message ?? 'Unable to sign in.')),
-      );
-      return;
-    }
-
-    Navigator.pushReplacementNamed(context, '/dashboard');
   }
 
   Widget _buildSignInForm(BuildContext context) {
@@ -319,15 +213,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             validator: (value) => (value == null || value.isEmpty) ? 'Password is required' : null,
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Checkbox(
-                value: _saveProfileOnSignIn,
-                onChanged: (v) => setState(() => _saveProfileOnSignIn = v ?? false),
-              ),
-              const Expanded(child: Text('Save this profile on the login page')),
-            ],
-          ),
           const Spacer(),
           SizedBox(
             width: double.infinity,
@@ -437,53 +322,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           ),
         ],
       ),
-    );
-  }
-}
-
-class _KnownAccountsBar extends StatelessWidget {
-  final List<FrontendAccount> accounts;
-  final Future<void> Function(String) onTapAccount;
-  final Future<void> Function(String)? onRemoveAccount;
-
-  const _KnownAccountsBar({
-    required this.accounts,
-    required this.onTapAccount,
-    this.onRemoveAccount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Saved for login',
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 38,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemBuilder: (context, index) {
-              final username = accounts[index].username;
-              return InputChip(
-                avatar: const Icon(Icons.person_outline, size: 16, color: Color(0xFF660066)),
-                label: Text(username),
-                onPressed: () => onTapAccount(username),
-                onDeleted: onRemoveAccount == null ? null : () => onRemoveAccount!(username),
-                deleteIcon: const Icon(Icons.close, size: 18),
-              );
-            },
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemCount: accounts.length,
-          ),
-        ),
-        const SizedBox(height: 12),
-      ],
     );
   }
 }
