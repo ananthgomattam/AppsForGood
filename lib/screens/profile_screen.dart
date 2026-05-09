@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import '../data/profile.dart';
 import '../database/database_helper.dart';
 import '../frontend/account_store.dart';
-
+// This screen allows users to view and edit their profile information, including name, doctor details, emergency contact, and notification preferences. It also provides options to sign out or delete the account.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
-
+// The _ProfileScreenState manages the state of the ProfileScreen, including loading and saving profile data, handling user interactions for signing out and deleting the account, and updating the UI accordingly.
 class _ProfileScreenState extends State<ProfileScreen> {
   final _nameController = TextEditingController();
   final _doctorController = TextEditingController();
@@ -104,7 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     controller.dispose();
     return password;
   }
-
+// The _deleteAccount method handles the account deletion process, including prompting the user for their password, confirming the deletion action, and communicating with the FrontendAccountStore to perform the deletion. It also provides feedback to the user based on the outcome of the deletion attempt.
   Future<void> _deleteAccount() async {
     if (_user == 'Guest') {
       return;
@@ -235,7 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _emergencyController.dispose();
     super.dispose();
   }
-
+// The build method constructs the UI of the ProfileScreen, displaying the user's profile information in editable fields, providing options to sign out or delete the account, and allowing the user to save changes to their profile. It also includes a switch for enabling or disabling seizure risk notifications.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
