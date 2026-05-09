@@ -3,16 +3,17 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../services/trigger_service.dart';
 import '../widgets/trigger_card.dart';
-
+//Copilot: "Explain the key Flutter patterns for implementing a data-driven screen with FutureBuilder, async database fetch, conditional content, and list rendering based on analysis results"
+// The TriggersScreen is a stateful widget that displays insights about potential seizure triggers based on the user's logged data. It retrieves daily logs and seizure logs from the database, analyzes them using the TriggerService, and presents the results in a user-friendly format. The screen handles different states such as loading, error, insufficient data, and ready with results, providing appropriate feedback to the user in each case.
 enum _TriggerTier { locked, basic, full }
-
+// The _TriggerPageData class is a data model that encapsulates the state of the trigger analysis page. It includes information about whether there is enough data for analysis, counts of daily logs, seizure logs, normal logs, total entries, the tier of analysis available, the list of trigger results, and any error messages. This class provides factory constructors for creating instances representing insufficient data, ready data with results, and error states, allowing for clear and organized handling of the different scenarios that may arise when loading and analyzing trigger data.
 class TriggersScreen extends StatefulWidget {
   const TriggersScreen({super.key});
 
   @override
   State<TriggersScreen> createState() => _TriggersScreenState();
 }
-
+// The _TriggersScreenState class manages the state of the TriggersScreen. It initializes a Future to load the trigger analysis data when the screen is first created. The _getData method retrieves the necessary logs from the database, checks if there is enough data for analysis, and if so, performs the trigger analysis using the TriggerService. The results are sorted and returned in a structured format. The build method uses a FutureBuilder to handle the different states of loading, error, insufficient data, and ready with results, displaying appropriate UI elements for each case.
 class _TriggersScreenState extends State<TriggersScreen> {
   late Future<_TriggerPageData> _dataFuture;
 
@@ -82,7 +83,7 @@ class _TriggersScreenState extends State<TriggersScreen> {
       return _TriggerPageData.error(error.toString());
     }
   }
-
+// The _reload method is a simple function that triggers a reload of the trigger analysis data by calling setState and reassigning the _dataFuture to a new call to _getData. This allows the user to refresh the analysis results after making changes to their logged data or in case of an error.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -222,7 +223,7 @@ class _TriggersScreenState extends State<TriggersScreen> {
     );
   }
 }
-
+// The _TriggerPageData class is a data model that encapsulates the state of the trigger analysis page. It includes information about whether there is enough data for analysis, counts of daily logs, seizure logs, normal logs, total entries, the tier of analysis available, the list of trigger results, and any error messages. This class provides factory constructors for creating instances representing insufficient data, ready data with results, and error states, allowing for clear and organized handling of the different scenarios that may arise when loading and analyzing trigger data.
 class _TriggerPageData {
   final bool hasEnoughData;
   final int dailyCount;

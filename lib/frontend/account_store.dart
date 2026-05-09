@@ -68,8 +68,6 @@ class FrontendAccountStore {
   static final FrontendAccountStore instance = FrontendAccountStore._();
 
   static const String _accountsKey = 'frontend_accounts_v1';
-  static const String _savedLoginAccountsKey =
-      'frontend_saved_login_accounts_v1';
   static const String _currentUserKey = 'frontend_current_user_v1';
   static const String _favoritePrefix = 'frontend_favorite_meds_';
   static const String _legacyMigratedPrefix = 'frontend_unknown_migrated_v1_';
@@ -92,57 +90,6 @@ class FrontendAccountStore {
   Future<String?> getCurrentUsername() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_currentUserKey);
-  }
-
-  // Get the list of usernames that are saved for quick login (but not necessarily currently signed in)
-  Future<List<String>> getSavedLoginUsernames() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList(_savedLoginAccountsKey) ?? <String>[];
-  }
-
-  // Check if a given username is in the list of saved login accounts
-  Future<bool> isSavedForLogin(String username) async {
-    final normalized = username.trim().toLowerCase();
-    if (normalized.isEmpty) {
-      return false;
-    }
-
-    final saved = await getSavedLoginUsernames();
-    return saved.contains(normalized);
-  }
-
-  // Add a username to the list of saved login accounts, if it's not already there
-  Future<void> saveProfileForLogin(String username) async {
-    final normalized = username.trim().toLowerCase();
-    if (normalized.isEmpty) {
-      return;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList(_savedLoginAccountsKey) ?? <String>[];
-    if (saved.contains(normalized)) {
-      return;
-    }
-
-    saved.add(normalized);
-    await prefs.setStringList(_savedLoginAccountsKey, saved);
-  }
-
-  // Remove a username from the list of saved login accounts, if it exists
-  Future<void> removeProfileFromLogin(String username) async {
-    final normalized = username.trim().toLowerCase();
-    if (normalized.isEmpty) {
-      return;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList(_savedLoginAccountsKey) ?? <String>[];
-    if (!saved.contains(normalized)) {
-      return;
-    }
-
-    saved.remove(normalized);
-    await prefs.setStringList(_savedLoginAccountsKey, saved);
   }
 
   // Sign up for a new account with the given username and password. Returns an AccountAuthResult indicating success or failure and an optional message.
@@ -278,7 +225,7 @@ class FrontendAccountStore {
       );
     }
 
-    // If we reach this point, the username and password are correct. Remove the account from the list of accounts, delete all associated data from the database, remove from saved login if needed, and if this was the currently signed in user, also sign out.
+    // If we reach this point, the username and password are correct. Remove the account from the list of accounts, delete all associated data from the database, and if this was the currently signed in user, also sign out.
     final prefs = await SharedPreferences.getInstance();
     await DatabaseHelper.instance.deleteUserData(normalized);
 
@@ -287,9 +234,6 @@ class FrontendAccountStore {
         .where((item) => item.username != normalized)
         .toList();
     await _writeAccounts(updated);
-
-    // Remove from saved login if needed
-    await removeProfileFromLogin(normalized);
 
     // Remove any favorite medications associated with this user
     await prefs.remove('$_favoritePrefix$normalized');
