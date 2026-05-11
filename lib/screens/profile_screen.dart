@@ -4,6 +4,8 @@ import '../data/profile.dart';
 import '../database/database_helper.dart';
 import '../frontend/account_store.dart';
 
+// This screen allows users to view and edit their profile information, including name, doctor details, emergency contact, and notification preferences. It also provides options to sign out or delete the account.
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -11,6 +13,7 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
+// The _ProfileScreenState manages the state of the ProfileScreen, including loading and saving profile data, handling user interactions for signing out and deleting the account, and updating the UI accordingly.
 class _ProfileScreenState extends State<ProfileScreen> {
   final _nameController = TextEditingController();
   final _doctorController = TextEditingController();
@@ -82,7 +85,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onPressed: () {
                           setDialogState(() => hidePassword = !hidePassword);
                         },
-                        icon: Icon(hidePassword ? Icons.visibility_off : Icons.visibility),
+                        icon: Icon(
+                          hidePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
                       ),
                     ),
                   ),
@@ -109,7 +116,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final password = await _promptForPassword(
       title: 'Switch account',
-      message: 'Enter the password for ${account.username} to switch to this account.',
+      message:
+          'Enter the password for ${account.username} to switch to this account.',
       confirmLabel: 'Switch',
     );
     if (password == null) return;
@@ -134,6 +142,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // The _deleteAccount method handles the account deletion process, including prompting the user for their password, confirming the deletion action, and communicating with the FrontendAccountStore to perform the deletion. It also provides feedback to the user based on the outcome of the deletion attempt.
+
   Future<void> _deleteAccount() async {
     if (_user == 'Guest') {
       return;
@@ -144,7 +154,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final password = await _promptForPassword(
       title: 'Delete account',
-      message: 'Enter the password for $_user to permanently delete this account and its data.',
+      message:
+          'Enter the password for $_user to permanently delete this account and its data.',
       confirmLabel: 'Delete',
     );
     if (password == null) return;
@@ -156,7 +167,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Confirm deletion'),
-          content: Text('This will permanently delete $_user and all of their saved data.'),
+          content: Text(
+            'This will permanently delete $_user and all of their saved data.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -192,9 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     await _loadUser();
     if (!context.mounted) return;
-    messenger.showSnackBar(
-      SnackBar(content: Text('Deleted $_user.')),
-    );
+    messenger.showSnackBar(SnackBar(content: Text('Deleted $_user.')));
   }
 
   Future<void> _signOut() async {
@@ -224,7 +235,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       gender: base?.gender,
       diagnosisType: base?.diagnosisType,
       diagnosisDate: base?.diagnosisDate,
-      doctorName: _doctorController.text.trim().isEmpty ? null : _doctorController.text.trim(),
+      doctorName: _doctorController.text.trim().isEmpty
+          ? null
+          : _doctorController.text.trim(),
       doctorPhone: base?.doctorPhone,
       hospitalPreference: base?.hospitalPreference,
       emergencyContactName: _emergencyController.text.trim().isEmpty
@@ -265,6 +278,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  // The build method constructs the UI of the ProfileScreen, displaying the user's profile information in editable fields, providing options to sign out or delete the account, and allowing the user to save changes to their profile. It also includes a switch for enabling or disabling seizure risk notifications.
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -281,7 +296,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.switch_account_rounded, color: Color(0xFF660066)),
+                        const Icon(
+                          Icons.switch_account_rounded,
+                          color: Color(0xFF660066),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -289,7 +307,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
-                        TextButton(onPressed: _signOut, child: const Text('Sign out')),
+                        TextButton(
+                          onPressed: _signOut,
+                          child: const Text('Sign out'),
+                        ),
                       ],
                     ),
                     if (_accounts.length > 1) ...[
@@ -309,7 +330,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             .where((account) => account.username != _user)
                             .map(
                               (account) => ActionChip(
-                                avatar: const Icon(Icons.person_outline, size: 16),
+                                avatar: const Icon(
+                                  Icons.person_outline,
+                                  size: 16,
+                                ),
                                 label: Text(account.username),
                                 onPressed: () => _switchToUser(account),
                               ),
@@ -334,12 +358,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: _doctorController,
-                      decoration: const InputDecoration(labelText: 'Doctor Name'),
+                      decoration: const InputDecoration(
+                        labelText: 'Doctor Name',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _emergencyController,
-                      decoration: const InputDecoration(labelText: 'Emergency Contact'),
+                      decoration: const InputDecoration(
+                        labelText: 'Emergency Contact',
+                      ),
                     ),
                   ],
                 ),
@@ -351,7 +379,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: SwitchListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                 title: const Text('Enable seizure risk notifications'),
-                subtitle: const Text('Receive reminders during high-risk periods.'),
+                subtitle: const Text(
+                  'Receive reminders during high-risk periods.',
+                ),
                 value: _riskAlerts,
                 onChanged: (value) => setState(() => _riskAlerts = value),
               ),
@@ -363,7 +393,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: _user == 'Guest' ? null : _deleteAccount,
                 icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                 label: const Text('Delete account'),
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.redAccent,
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -375,7 +407,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Text('Save Profile'),
               ),
@@ -386,5 +421,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-
-
