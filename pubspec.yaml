@@ -49,6 +49,7 @@ dependencies:
   flutter_local_notifications: ^17.2.1+1
   timezone: ^0.9.4
   flutter_timezone: ^3.0.1
+  flutter_launcher_icons: ^0.13.1
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -106,3 +107,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "web/icons/favicon.png"
+  # Optional: For Android adaptive icons
+  adaptive_icon_background: "#FFFFFF" 
+  adaptive_icon_foreground: "web/icons/favicon.png"
