@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import '../data/profile.dart';
 import '../database/database_helper.dart';
 import '../frontend/account_store.dart';
-// This screen allows users to view and edit their profile information, including name, doctor details, emergency contact, and notification preferences. It also provides options to sign out or delete the account.
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
-// The _ProfileScreenState manages the state of the ProfileScreen, including loading and saving profile data, handling user interactions for signing out and deleting the account, and updating the UI accordingly.
+
 class _ProfileScreenState extends State<ProfileScreen> {
   final _nameController = TextEditingController();
   final _doctorController = TextEditingController();
@@ -19,6 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Profile? _profile;
   bool _saving = false;
   String _user = 'Guest';
+  List<FrontendAccount> _accounts = const [];
 
   @override
   void initState() {
@@ -28,10 +29,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUser() async {
     final user = await FrontendAccountStore.instance.getCurrentUsername();
+    final accounts = await FrontendAccountStore.instance.getAccounts();
     final profile = await DatabaseHelper.instance.getProfile();
     if (!mounted) return;
     setState(() {
       _user = user ?? 'Guest';
+      _accounts = accounts;
       _profile = profile;
       if (profile != null) {
         _nameController.text = profile.name;
@@ -52,12 +55,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String message,
     required String confirmLabel,
   }) async {
-    final controller = TextEditingController();
-    bool hidePassword = true;
-
-    final password = await showDialog<String>(
+    return showDialog<String>(
       context: context,
       builder: (context) {
+        final controller = TextEditingController();
+        bool hidePassword = true;
+
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -100,11 +103,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
-
-    controller.dispose();
-    return password;
   }
-// The _deleteAccount method handles the account deletion process, including prompting the user for their password, confirming the deletion action, and communicating with the FrontendAccountStore to perform the deletion. It also provides feedback to the user based on the outcome of the deletion attempt.
+
+  Future<void> _switchToUser(FrontendAccount account) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final password = await _promptForPassword(
+      title: 'Switch account',
+      message: 'Enter the password for ${account.username} to switch to this account.',
+      confirmLabel: 'Switch',
+    );
+    if (password == null) return;
+
+    final result = await FrontendAccountStore.instance.signIn(
+      username: account.username,
+      password: password,
+    );
+    if (!mounted) return;
+
+    if (!result.success) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(result.message ?? 'Unable to switch accounts.')),
+      );
+      return;
+    }
+
+    await _loadUser();
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(content: Text('Switched to ${account.username}')),
+    );
+  }
+
   Future<void> _deleteAccount() async {
     if (_user == 'Guest') {
       return;
@@ -235,7 +264,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _emergencyController.dispose();
     super.dispose();
   }
-// The build method constructs the UI of the ProfileScreen, displaying the user's profile information in editable fields, providing options to sign out or delete the account, and allowing the user to save changes to their profile. It also includes a switch for enabling or disabling seizure risk notifications.
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -263,6 +292,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         TextButton(onPressed: _signOut, child: const Text('Sign out')),
                       ],
                     ),
+                    if (_accounts.length > 1) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Switch account',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _accounts
+                            .where((account) => account.username != _user)
+                            .map(
+                              (account) => ActionChip(
+                                avatar: const Icon(Icons.person_outline, size: 16),
+                                label: Text(account.username),
+                                onPressed: () => _switchToUser(account),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -292,7 +346,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            
             const SizedBox(height: 12),
             Card(
               child: SwitchListTile(
@@ -333,3 +386,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
+
+
